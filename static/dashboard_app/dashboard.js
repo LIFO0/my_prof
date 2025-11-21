@@ -31,6 +31,25 @@ function initSearchSync() {
       form.submit();
     }
   });
+
+  sidebarInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      syncValue(sidebarInput, headerInput);
+      form.submit();
+    }
+  });
+
+  // Обработка Enter для всех полей формы фильтров
+  const formInputs = form.querySelectorAll('input[type="text"], input[type="number"], select');
+  formInputs.forEach(input => {
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        form.submit();
+      }
+    });
+  });
 }
 
 function initLiveSearch() {
