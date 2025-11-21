@@ -4,88 +4,139 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Вход в систему - Дашборд IT-компаний</title>
-    <link rel="stylesheet" href="{% static 'dashboard_app/styles.css' %}">
+    <title>Вход в систему</title>
     <style>
-        .login-container {
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f5f5;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 32px;
+            padding: 20px;
         }
-        .login-card {
-            background: var(--panel);
-            border-radius: 16px;
-            padding: 48px;
-            box-shadow: var(--shadow);
-            width: 100%;
-            max-width: 420px;
-        }
-        .login-card h1 {
-            margin-bottom: 8px;
-            font-size: 28px;
-            text-align: center;
 
+        .login-container {
+            background: #d9d9d9;
+            border-radius: 32px;
+            padding: 60px 50px;
+            width: 100%;
+            max-width: 460px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
         }
-        .login-card p {
-            color: var(--muted);
-            margin-bottom: 32px;
+
+        .login-card h1 {
+            font-size: 32px;
+            font-weight: 700;
+            color: #000000;
             text-align: center;
+            margin-bottom: 12px;
         }
-        .form-group {
-            margin-bottom: 24px;
+
+        .login-card p {
+            font-size: 15px;
+            color: #6b6b6b;
+            text-align: center;
+            margin-bottom: 48px;
+            line-height: 1.5;
         }
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 500;
-            color: var(--text);
-        }
-        .form-group input {
-            width: 100%;
-            padding: 12px 16px;
-            border: 2px solid var(--border);
-            border-radius: 8px;
-            font-size: 16px;
-            transition: border-color 0.2s;
-        }
-        .form-group input:focus {
-            outline: none;
-            border-color: var(--primary);
-        }
-        .btn-login {
-            width: 100%;
-            padding: 14px;
-            background: var(--primary);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        .btn-login:hover {
-            background: var(--primary-dark);
-        }
+
         .messages {
             margin-bottom: 24px;
         }
+
         .message {
-            padding: 12px 16px;
-            border-radius: 8px;
+            padding: 14px 18px;
+            border-radius: 12px;
             margin-bottom: 12px;
+            font-size: 14px;
+            font-weight: 500;
         }
+
         .message-error {
             background: #fee2e2;
             color: #991b1b;
             border: 1px solid #fecaca;
         }
+
         .message-success {
             background: #dcfce7;
             color: #166534;
             border: 1px solid #bbf7d0;
+        }
+
+        .form-group {
+            margin-bottom: 32px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 16px;
+            font-weight: 600;
+            color: #000000;
+            margin-bottom: 12px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 16px 20px;
+            border: none;
+            border-radius: 16px;
+            font-size: 16px;
+            background: #ffffff;
+            color: #000000;
+            transition: box-shadow 0.2s ease;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(16, 71, 43, 0.1);
+        }
+
+        .form-group input::placeholder {
+            color: #9a9a9a;
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: 18px;
+            background: #1e5540;
+            color: #ffffff;
+            border: none;
+            border-radius: 16px;
+            font-size: 18px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.2s ease;
+            margin-top: 16px;
+        }
+
+        .btn-login:hover {
+            background: #164230;
+        }
+
+        .btn-login:active {
+            transform: translateY(1px);
+        }
+
+        @media (max-width: 480px) {
+            .login-container {
+                padding: 40px 30px;
+            }
+
+            .login-card h1 {
+                font-size: 26px;
+            }
+
+            .login-card p {
+                font-size: 14px;
+            }
         }
     </style>
 </head>
@@ -94,7 +145,7 @@
         <div class="login-card">
             <h1>Вход в систему</h1>
             <p>Войдите в свой аккаунт для доступа к приложению</p>
-            
+
             {% if messages %}
             <div class="messages">
                 {% for message in messages %}
