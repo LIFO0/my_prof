@@ -5,6 +5,9 @@ document.addEventListener('DOMContentLoaded', () => {
   initQuickFilters();
   initSelectionControls();
   initNotifications();
+  initPagination();
+  initCompanyTooltip();
+  initMessages();
 });
 
 function initSearchSync() {
@@ -28,6 +31,25 @@ function initSearchSync() {
       syncValue(headerInput, sidebarInput);
       form.submit();
     }
+  });
+
+  sidebarInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      syncValue(sidebarInput, headerInput);
+      form.submit();
+    }
+  });
+
+  // Обработка Enter для всех полей формы фильтров
+  const formInputs = form.querySelectorAll('input[type="text"], input[type="number"], select');
+  formInputs.forEach(input => {
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        form.submit();
+      }
+    });
   });
 }
 
@@ -255,18 +277,7 @@ function initSelectionControls() {
       hidden.value = input.value;
       hiddenInputsContainer.appendChild(hidden);
     });
-    const names = selected.slice(0, 3).map((input) => {
-      const row = input.closest('tr');
-      const nameElement = row ? row.querySelector('.company-name strong') : null;
-      const nameText = nameElement ? nameElement.textContent.trim() : '';
-      return nameText || input.value;
-    });
-    let preview = 'Компании не выбраны.';
-    if (names.length) {
-      const rest = selected.length - names.length;
-      preview = `${names.join(', ')}${rest > 0 ? ` и ещё ${rest}` : ''}`;
-    }
-    sendSummary.textContent = `Компаний в отчёте: ${selected.length}. ${preview}`;
+    sendSummary.textContent = `Количество компаний в отчёте: ${selected.length}`;
     sendModal.classList.add('is-open');
     sendModal.setAttribute('aria-hidden', 'false');
   };
@@ -465,4 +476,231 @@ function dismissToast(toast) {
       stack?.remove();
     }
   }, 200);
+}
+
+function initPagination() {
+  const paginationLinks = document.querySelectorAll('.pagination .pagination-btn[href]');
+  const dataTable = document.querySelector('.data-table');
+  
+  if (!paginationLinks.length || !dataTable) return;
+
+  // Прокрутка к началу таблицы при загрузке страницы с пагинацией
+  if (window.location.search.includes('page=')) {
+    setTimeout(() => {
+      dataTable.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'start' 
+      });
+    }, 100);
+  }
+
+  paginationLinks.forEach(link => {
+    link.addEventListener('click', (e) => {
+      // Плавная прокрутка к началу таблицы
+      dataTable.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'start' 
+      });
+      
+      // Небольшая задержка для плавности, затем переход
+      setTimeout(() => {
+        window.location.href = link.href;
+      }, 200);
+      
+      e.preventDefault();
+    });
+  });
+}
+
+function initCompanyTooltip() {
+  const companyNames = document.querySelectorAll('.company-name[data-company-info]');
+  let tooltip = null;
+  let hideTimeout = null;
+
+  if (!companyNames.length) {
+    console.warn('No company names with data-company-info found');
+    return;
+  }
+
+  function createTooltip(data) {
+    if (tooltip) {
+      tooltip.remove();
+    }
+
+    tooltip = document.createElement('div');
+    tooltip.className = 'company-tooltip';
+    
+    let info;
+    try {
+      info = JSON.parse(data);
+    } catch (e) {
+      console.error('Error parsing company info:', e, data);
+      return null;
+    }
+    tooltip.innerHTML = `
+      <div class="tooltip-header">
+        <h5>${info.full_name || '—'}</h5>
+        <p class="tooltip-inn">ИНН: ${info.inn || '—'}</p>
+      </div>
+      <div class="tooltip-content">
+        <div class="tooltip-row"><span class="tooltip-label">ОКВЭД:</span><span>${info.okved || '—'}</span></div>
+        <div class="tooltip-row"><span class="tooltip-label">Выручка:</span><span>${info.revenue !== '—' ? info.revenue + ' ₽' : '—'}</span></div>
+        <div class="tooltip-row"><span class="tooltip-label">Расходы:</span><span>${info.expenses !== '—' ? info.expenses + ' ₽' : '—'}</span></div>
+        <div class="tooltip-row"><span class="tooltip-label">Налоги:</span><span>${info.taxes !== '—' ? info.taxes + ' ₽' : '—'}</span></div>
+        <div class="tooltip-row"><span class="tooltip-label">Год налогов:</span><span>${info.tax_year || '—'}</span></div>
+        <div class="tooltip-row"><span class="tooltip-label">Численность:</span><span>${info.staff || '—'}</span></div>
+        <div class="tooltip-row"><span class="tooltip-label">Год численности:</span><span>${info.staff_year || '—'}</span></div>
+        <div class="tooltip-row"><span class="tooltip-label">УСН:</span><span>${info.uses_usn || '—'}</span></div>
+        <div class="tooltip-row"><span class="tooltip-label">Руководитель:</span><span>${info.ceo || '—'}</span></div>
+        <div class="tooltip-row"><span class="tooltip-label">Дата постановки:</span><span>${info.registered_at || '—'}</span></div>
+        <div class="tooltip-row"><span class="tooltip-label">Дата МСП:</span><span>${info.msme_at || '—'}</span></div>
+        <div class="tooltip-row"><span class="tooltip-label">Финансовый результат:</span><span>${info.financial_result !== '—' ? info.financial_result + ' ₽' : '—'}</span></div>
+        ${info.accreditation_status !== '—' ? `
+          <div class="tooltip-row"><span class="tooltip-label">Аккредитация:</span><span>${info.accreditation_status}</span></div>
+          <div class="tooltip-row"><span class="tooltip-label">Номер решения:</span><span>${info.accreditation_decision}</span></div>
+          <div class="tooltip-row"><span class="tooltip-label">Дата решения:</span><span>${info.accreditation_date}</span></div>
+        ` : ''}
+      </div>
+    `;
+    
+    document.body.appendChild(tooltip);
+    return tooltip;
+  }
+
+  function positionTooltip(element, tooltip) {
+    const rect = element.getBoundingClientRect();
+    const tooltipRect = tooltip.getBoundingClientRect();
+
+    // Позиционируем справа от элемента (используем координаты viewport для fixed)
+    let left = rect.right + 15;
+    let top = rect.top;
+
+    // Проверка, не выходит ли tooltip за правый край экрана
+    if (left + tooltipRect.width > window.innerWidth) {
+      // Если не помещается справа, показываем слева
+      left = rect.left - tooltipRect.width - 15;
+    }
+
+    // Проверка, не выходит ли tooltip за левый край экрана
+    if (left < 0) {
+      left = 10;
+    }
+
+    // Проверка, не выходит ли tooltip за нижний край экрана
+    if (top + tooltipRect.height > window.innerHeight) {
+      top = window.innerHeight - tooltipRect.height - 10;
+    }
+
+    // Проверка, не выходит ли tooltip за верхний край экрана
+    if (top < 0) {
+      top = 10;
+    }
+
+    tooltip.style.top = `${top}px`;
+    tooltip.style.left = `${left}px`;
+  }
+
+  companyNames.forEach((name, index) => {
+    // Проверяем, что элемент имеет атрибут
+    const hasData = name.hasAttribute('data-company-info');
+    if (!hasData) {
+      console.warn(`Company name ${index} missing data-company-info attribute`);
+      return;
+    }
+
+    // Добавляем курсор pointer для визуального указания
+    if (!name.style.cursor) {
+      name.style.cursor = 'pointer';
+    }
+
+    name.addEventListener('mouseenter', (e) => {
+      if (hideTimeout) {
+        clearTimeout(hideTimeout);
+        hideTimeout = null;
+      }
+
+      const data = e.target.getAttribute('data-company-info');
+      if (!data) {
+        console.warn('No data-company-info attribute found on hover');
+        return;
+      }
+
+      const tooltipElement = createTooltip(data);
+      if (!tooltipElement) {
+        console.warn('Failed to create tooltip');
+        return;
+      }
+      
+      // Небольшая задержка перед показом для плавности
+      setTimeout(() => {
+        if (tooltipElement && tooltipElement.parentNode) {
+          tooltipElement.classList.add('tooltip-visible');
+          positionTooltip(e.target, tooltipElement);
+        }
+      }, 100);
+    });
+
+    name.addEventListener('mouseleave', () => {
+      if (tooltip) {
+        hideTimeout = setTimeout(() => {
+          if (tooltip) {
+            tooltip.classList.remove('tooltip-visible');
+            setTimeout(() => {
+              if (tooltip) {
+                tooltip.remove();
+                tooltip = null;
+              }
+            }, 200);
+          }
+        }, 100);
+      }
+    });
+
+    name.addEventListener('mousemove', (e) => {
+      if (tooltip && tooltip.classList.contains('tooltip-visible')) {
+        positionTooltip(e.target, tooltip);
+      }
+    });
+  });
+}
+
+function initMessages() {
+  const messages = document.querySelectorAll('.message');
+  
+  messages.forEach(message => {
+    const closeBtn = message.querySelector('.message-close');
+    let timeoutId = null;
+
+    function hideMessage() {
+      message.classList.add('message-hidden');
+      setTimeout(() => {
+        message.remove();
+      }, 250);
+    }
+
+    // Автоматическое скрытие через 10 секунд
+    timeoutId = setTimeout(hideMessage, 10000);
+
+    // Закрытие по клику на крестик
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        hideMessage();
+      });
+    }
+
+    // Остановка таймера при наведении
+    message.addEventListener('mouseenter', () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    });
+
+    // Возобновление таймера при уходе мыши
+    message.addEventListener('mouseleave', () => {
+      timeoutId = setTimeout(hideMessage, 10000);
+    });
+  });
 }

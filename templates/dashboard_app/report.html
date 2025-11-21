@@ -95,10 +95,27 @@
         .download-btn:not(:disabled):hover {
             opacity: 0.85;
         }
+        .back-btn {
+            background-color: #ffffff;
+            color: #10472b;
+            border: 2px solid #10472b;
+            border-radius: 999px;
+            padding: 10px 20px;
+            font-size: 0.95rem;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-block;
+        }
+        .back-btn:hover {
+            background-color: #10472b;
+            color: white;
+        }
         @media print {
             body { margin: 0; }
             .note { display: none; }
             .download-btn { display: none; }
+            .back-btn { display: none; }
         }
     </style>
 </head>
@@ -108,15 +125,18 @@
             <h1>Отчёт по выбранным компаниям</h1>
             <p class="meta">Всего организаций: {{ count }} · Дата формирования: {% now "d.m.Y H:i" %}</p>
         </div>
-        {% if selected_inns %}
-        <form method="post" action="{% url 'report_export_excel' %}">
-            {% csrf_token %}
-            {% for inn in selected_inns %}
-                <input type="hidden" name="company_inn" value="{{ inn }}">
-            {% endfor %}
-            <button type="submit" class="download-btn">Скачать в Excel</button>
-        </form>
-        {% endif %}
+        <div style="display: flex; gap: 12px; align-items: center;">
+            <a href="{% url 'dashboard' %}" class="back-btn">← Вернуться на главную</a>
+            {% if selected_inns %}
+            <form method="post" action="{% url 'report_export_excel' %}" style="margin: 0;">
+                {% csrf_token %}
+                {% for inn in selected_inns %}
+                    <input type="hidden" name="company_inn" value="{{ inn }}">
+                {% endfor %}
+                <button type="submit" class="download-btn">Скачать в Excel</button>
+            </form>
+            {% endif %}
+        </div>
     </div>
 
     <div class="grid">

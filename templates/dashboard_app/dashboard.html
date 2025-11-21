@@ -13,7 +13,10 @@
     {% if messages %}
     <div class="messages">
         {% for message in messages %}
-        <div class="message message-{{ message.tags|default:'info' }}">{{ message }}</div>
+        <div class="message message-{{ message.tags|default:'info' }}">
+            <span class="message-text">{{ message }}</span>
+            <button class="message-close" aria-label="Закрыть">&times;</button>
+        </div>
         {% endfor %}
     </div>
     {% endif %}
@@ -24,7 +27,7 @@
             <div class="brand-text">
                 <span class="brand-name">Метрика</span>
             </div>
-        </div>
+        </a>
         <div class="top-header-search">
             <div class="search-container">
                 <svg class="search-icon" width="24" height="24" viewBox="0 0 24 24" fill="none">
@@ -104,7 +107,7 @@
 
                 <div class="filter-row">
                     <div class="filter-group-half">
-                        <label class="filter-label">Год уплаты налогов</label>
+                        <label class="filter-label filter-label-wrap">Год уплаты налогов</label>
                         <select class="filter-select-small" name="tax_year">
                             <option value="">Любой</option>
                             {% for year in filter_options.tax_years %}
@@ -113,7 +116,7 @@
                         </select>
                     </div>
                     <div class="filter-group-half">
-                        <label class="filter-label">Год численности</label>
+                        <label class="filter-label filter-label-wrap">Год численности</label>
                         <select class="filter-select-small" name="staff_year">
                             <option value="">Любой</option>
                             {% for year in filter_options.staff_years %}
@@ -156,10 +159,10 @@
                     <div class="stat-icon-dark">
                         <img src="{% static 'dashboard_app/img/icon_2.png' %}" alt="Количество работников">
                     </div>
-                    <h3 class="stat-title-dark">Количество Работников</h3>
+                    <h3 class="stat-title-dark">Средняя численность работников</h3>
                     <p class="stat-value-dark">
                         {% if dataset_stats.avg_staff %}
-                            {{ dataset_stats.avg_staff|floatformat:1 }}
+                            {{ dataset_stats.avg_staff|floatformat:0|intcomma }}
                         {% else %}
                             —
                         {% endif %}
@@ -213,22 +216,24 @@
                         </div>
                     </div>
 
-                    <div class="active-filters">
-                        <span class="active-filters-title">{{ selection_stats.count|default:0|intcomma }} компаний соответствует фильтрам</span>
-                        <div class="chips" id="active-filters">
-                            {% if active_filters %}
-                                {% for item in active_filters %}
-                                <span class="chip">{{ item }}</span>
-                                {% endfor %}
-                            {% else %}
-                                <span class="chip chip-muted">Фильтры не заданы</span>
-                            {% endif %}
+                    <div class="filters-and-tools">
+                        <div class="active-filters">
+                            <span class="active-filters-title">{{ selection_stats.count|default:0|intcomma }} компаний соответствует фильтрам</span>
+                            <div class="chips" id="active-filters">
+                                {% if active_filters %}
+                                    {% for item in active_filters %}
+                                    <span class="chip">{{ item }}</span>
+                                    {% endfor %}
+                                {% else %}
+                                    <span class="chip chip-muted">Фильтры не заданы</span>
+                                {% endif %}
+                            </div>
                         </div>
-                    </div>
 
-                    <div class="data-tools">
-                        <input type="search" id="live-search" placeholder="Живой поиск по текущей выборке">
-                        <p class="hint">Клик по заголовку — сортировка · Esc — очистить поиск</p>
+                        <div class="data-tools">
+                            <input type="search" id="live-search" placeholder="Живой поиск по текущей выборке">
+                            <p class="hint">Клик по заголовку — сортировка · Esc — очистить поиск</p>
+                        </div>
                     </div>
 
                     <div class="data-table">
@@ -240,10 +245,9 @@
                                     <th data-sort="text">ОКВЭД</th>
                                     <th data-sort="number">Выручка</th>
                                     <th data-sort="number">Налоги</th>
-                                    <th data-sort="number">Численность</th>
+                                    <th data-sort="number">кол-во<br>сотр.</th>
                                     <th data-sort="text">Аккредитация</th>
                                     <th data-sort="text">УСН</th>
-                                    <th>Подробнее</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -253,7 +257,10 @@
                                         <input type="checkbox" class="row-checkbox" name="company_inn" value="{{ company.inn }}" aria-label="Выбрать {{ company.short_name|default:company.full_name }}">
                                     </td>
                                     <td class="table-cell">
-                                        <h4 class="company-name">{{ company.short_name|default:company.full_name }}</h4>
+                                        <h4 class="company-name" 
+                                            data-company-info='{"full_name": "{{ company.full_name|escapejs }}", "inn": "{{ company.inn }}", "okved": "{{ company.okved|default:"—"|escapejs }}", "revenue": "{{ company.revenue|default:"—"|intcomma }}", "expenses": "{{ company.expenses|default:"—"|intcomma }}", "taxes": "{{ company.taxes|default:"—"|intcomma }}", "tax_year": "{{ company.tax_year|default:"—" }}", "staff": "{{ company.staff|default:"—" }}", "staff_year": "{{ company.staff_year|default:"—" }}", "uses_usn": "{{ company.uses_usn|yesno:"Да,Нет,—" }}", "ceo": "{{ company.ceo|default:"—"|escapejs }}", "registered_at": "{{ company.registered_at|default:"—" }}", "msme_at": "{{ company.msme_at|default:"—" }}", "financial_result": "{{ company.financial_result|default:"—"|intcomma }}", "accreditation_status": "{% if company.accreditation %}{{ company.accreditation.status|default:"—"|escapejs }}{% else %}—{% endif %}", "accreditation_decision": "{% if company.accreditation %}{{ company.accreditation.decision_number|default:"—"|escapejs }}{% else %}—{% endif %}", "accreditation_date": "{% if company.accreditation and company.accreditation.decision_date %}{{ company.accreditation.decision_date|date:"d.m.Y" }}{% else %}—{% endif %}"}'>
+                                            {{ company.short_name|default:company.full_name }}
+                                        </h4>
                                         <p class="company-details">{{ company.full_name }}<br>ИНН: {{ company.inn }}</p>
                                     </td>
                                     <td class="table-cell">
@@ -305,34 +312,10 @@
                                             <span class="status-badge status-badge-muted">—</span>
                                         {% endif %}
                                     </td>
-                                    <td class="table-cell">
-                                        <details>
-                                            <summary>Показать</summary>
-                                            <ul>
-                                                <li>Дата постановки: {{ company.registered_at|default:"—" }}</li>
-                                                <li>Руководитель: {{ company.ceo|default:"—" }}</li>
-                                                <li>Год налогов: {{ company.tax_year|default:"—" }}</li>
-                                                <li>Год численности: {{ company.staff_year|default:"—" }}</li>
-                                                <li>Дата МСП: {{ company.msme_at|default:"—" }}</li>
-                                                {% if company.accreditation %}
-                                                <li>Статус аккредитации: {{ company.accreditation.status }}</li>
-                                                <li>Номер решения: {{ company.accreditation.decision_number|default:"—" }}</li>
-                                                <li>Дата решения: {{ company.accreditation.decision_date|date:"d.m.Y"|default:"—" }}</li>
-                                                {% endif %}
-                                                <li>Финансовый результат:
-                                                    {% if company.financial_result %}
-                                                        {{ company.financial_result|intcomma }} ₽
-                                                    {% else %}
-                                                        —
-                                                    {% endif %}
-                                                </li>
-                                            </ul>
-                                        </details>
-                                    </td>
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="9" class="empty-state">
+                                    <td colspan="8" class="empty-state">
                                         <p>По заданным условиям ничего не найдено. Попробуйте смягчить фильтры.</p>
                                     </td>
                                 </tr>
@@ -380,7 +363,7 @@
     <footer class="footer">
         <div class="footer-content">
             <div class="footer-left">
-                <img src="{% static 'dashboard_app/img/footer_icon.png' %}" alt="Метрика" class="footer-icon">
+                <img src="{% static 'dashboard_app/img/copyright.png' %}" alt="Метрика" class="footer-icon">
                 <span>2025 Метрика, официальный сайт</span>
             </div>
             <div class="footer-center">
