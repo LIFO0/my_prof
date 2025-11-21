@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initQuickFilters();
   initSelectionControls();
   initNotifications();
+  initPagination();
 });
 
 function initSearchSync() {
@@ -465,4 +466,38 @@ function dismissToast(toast) {
       stack?.remove();
     }
   }, 200);
+}
+
+function initPagination() {
+  const paginationLinks = document.querySelectorAll('.pagination .pagination-btn[href]');
+  const dataTable = document.querySelector('.data-table');
+  
+  if (!paginationLinks.length || !dataTable) return;
+
+  // Прокрутка к началу таблицы при загрузке страницы с пагинацией
+  if (window.location.search.includes('page=')) {
+    setTimeout(() => {
+      dataTable.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'start' 
+      });
+    }, 100);
+  }
+
+  paginationLinks.forEach(link => {
+    link.addEventListener('click', (e) => {
+      // Плавная прокрутка к началу таблицы
+      dataTable.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'start' 
+      });
+      
+      // Небольшая задержка для плавности, затем переход
+      setTimeout(() => {
+        window.location.href = link.href;
+      }, 200);
+      
+      e.preventDefault();
+    });
+  });
 }
