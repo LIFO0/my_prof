@@ -160,3 +160,5 @@ logs/
 *.db.backup
 *.sqlite3.backup
 
+# Testing files
+vacancies_results.txt

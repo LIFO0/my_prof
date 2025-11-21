@@ -1,4 +1,5 @@
 @echo off
+chcp 65001
 setlocal enabledelayedexpansion
 
 REM Navigate to project root (current directory of this script)
@@ -26,7 +27,35 @@ if errorlevel 1 (
 
 echo.
 echo Запускаем сервер разработки. Нажмите CTRL+C для остановки.
-python manage.py runserver
+echo.
+
+REM Получаем IP-адрес для подключения из локальной сети
+echo ========================================
+echo Сервер будет доступен по адресам:
+echo   - Локально: http://127.0.0.1:8000
+echo.
+echo Определяем IP-адрес в локальной сети...
+
+for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /c:"IPv4"') do (
+    set "IP_ADDRESS=%%a"
+    set "IP_ADDRESS=!IP_ADDRESS:~1!"
+    if not "!IP_ADDRESS!"=="" (
+        echo   - В локальной сети: http://!IP_ADDRESS!:8000
+        goto :ip_found
+    )
+)
+
+:ip_found
+echo.
+echo Для подключения с другого компьютера используйте IP-адрес
+echo из вывода выше (например, http://192.168.1.100:8000)
+echo ========================================
+echo.
+echo Запуск сервера...
+echo.
+
+REM Запускаем сервер на всех интерфейсах (0.0.0.0) для доступа из локальной сети
+python manage.py runserver 0.0.0.0:8000
 
 
 

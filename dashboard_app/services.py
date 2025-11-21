@@ -149,12 +149,20 @@ def calculate_stats(rows: Iterable[Dict]) -> Dict[str, Optional[float | int]]:
         return matched * 100 / len(rows)
 
     top_company = None
+    accredited_count = 0
     for row in rows:
         revenue = row.get('revenue')
         if revenue is None:
             continue
         if not top_company or revenue > top_company['revenue']:
             top_company = row
+        accreditation = row.get('accreditation')
+        if accreditation:
+            status = getattr(accreditation, 'status', '') or (
+                accreditation.get('status') if isinstance(accreditation, dict) else ''
+            )
+            if isinstance(status, str) and 'действ' in status.lower():
+                accredited_count += 1
 
     return {
         'count': len(rows),
@@ -164,6 +172,7 @@ def calculate_stats(rows: Iterable[Dict]) -> Dict[str, Optional[float | int]]:
         'avg_staff': average('staff'),
         'usn_share': share(lambda r: r.get('uses_usn') is True),
         'top_company': top_company,
+        'accredited': accredited_count,
     }
 
 
@@ -400,5 +409,3 @@ def get_accreditations_for_inns(
 ) -> Dict[str, AccreditationStatus]:
     records = AccreditationStatus.objects.filter(inn__in=inns)
     return {record.inn: record for record in records}
-
-

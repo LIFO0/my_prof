@@ -1,14 +1,19 @@
 import json
+import logging
+from io import BytesIO
 
 from django.contrib import messages
-from django.contrib.auth import authenticate, login, logout
-from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
-from django.shortcuts import redirect, render
+from django.contrib.auth import authenticate, get_user_model, login, logout
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+logger = logging.getLogger(__name__)
+
 from .decorators import director_required, employee_or_director_required
-from .models import UserProfile
+from .models import Notification, UserProfile
 from .services import (
     apply_filters,
     available_filter_options,
@@ -79,6 +84,99 @@ def _describe_active_filters(filters: dict) -> list[str]:
     return descriptions
 
 
+def _generate_excel_workbook(companies: list[dict]):
+    from openpyxl import Workbook
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = 'Компании'
+
+    headers = [
+        'Короткое название',
+        'Полное название',
+        'ИНН',
+        'ОКВЭД',
+        'Выручка',
+        'Расходы',
+        'Налоги',
+        'Год налогов',
+        'Средняя численность',
+        'Год численности',
+        'УСН',
+        'Аккредитация',
+        'Финансовый результат',
+        'Руководитель',
+        'Дата постановки на учёт',
+        'Дата в реестре МСП',
+    ]
+    sheet.append(headers)
+
+    def format_money(value):
+        return value if value is not None else ''
+
+    def format_bool(value):
+        if value is True:
+            return 'Да'
+        if value is False:
+            return 'Нет'
+        return ''
+
+    for company in companies:
+        accreditation_status = ''
+        accreditation = company.get('accreditation')
+        if accreditation:
+            if isinstance(accreditation, dict):
+                accreditation_status = accreditation.get('status', '')
+            else:
+                accreditation_status = getattr(accreditation, 'status', '')
+        sheet.append([
+            company.get('short_name') or '',
+            company.get('full_name') or '',
+            company.get('inn') or '',
+            company.get('okved') or '',
+            format_money(company.get('revenue')),
+            format_money(company.get('expenses')),
+            format_money(company.get('taxes')),
+            company.get('tax_year') or '',
+            company.get('staff') or '',
+            company.get('staff_year') or '',
+            format_bool(company.get('uses_usn')),
+            accreditation_status,
+            format_money(company.get('financial_result')),
+            company.get('ceo') or '',
+            company.get('registered_at') or '',
+            company.get('msme_at') or '',
+        ])
+
+    for column in sheet.columns:
+        max_length = 0
+        column_letter = column[0].column_letter
+        for cell in column:
+            cell_value = cell.value or ''
+            max_length = max(max_length, len(str(cell_value)))
+        adjusted_width = min(max_length + 2, 60)
+        sheet.column_dimensions[column_letter].width = adjusted_width
+
+    return workbook
+
+
+def _build_excel_response(companies: list[dict], filename_prefix: str = 'report'):
+    workbook = _generate_excel_workbook(companies)
+    output = BytesIO()
+    workbook.save(output)
+    output.seek(0)
+
+    timestamp = timezone.now().strftime('%Y%m%d_%H%M')
+    filename = f'{filename_prefix}_{timestamp}.xlsx'
+
+    response = HttpResponse(
+        output.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
 @employee_or_director_required
 def dashboard_view(request):
     from django.core.paginator import Paginator
@@ -104,6 +202,32 @@ def dashboard_view(request):
         page_obj = paginator.get_page(1)
 
     user_profile = request.user.profile
+    User = get_user_model()
+    report_recipients = User.objects.filter(
+        profile__role=UserProfile.ROLE_EMPLOYEE
+    ).order_by('first_name', 'username')
+
+    unread_notifications = list(
+        request.user.notifications.filter(is_read=False).order_by('created_at')
+    )
+    notifications_payload = [
+        {
+            'id': note.id,
+            'title': note.title,
+            'message': note.message,
+            'type': note.notification_type,
+            'created_at': timezone.localtime(note.created_at).strftime('%d.%m.%Y %H:%M'),
+            'download_url': reverse('notification_download', args=[note.id])
+            if (note.payload or {}).get('inns')
+            else None,
+            'companies_preview': (note.payload or {}).get('companies_preview', []),
+            'count': (note.payload or {}).get('count'),
+        }
+        for note in unread_notifications
+    ]
+    if unread_notifications:
+        Notification.objects.filter(id__in=[note.id for note in unread_notifications]).update(is_read=True)
+
     context = {
         'filters': filters,
         'active_filters': _describe_active_filters(filters),
@@ -116,6 +240,8 @@ def dashboard_view(request):
         'accreditations': accreditation_map,
         'is_director': user_profile.is_director,
         'user': request.user,
+        'report_recipients': report_recipients,
+        'notifications_payload': notifications_payload,
     }
     return render(request, 'dashboard_app/dashboard.html', context)
 
@@ -140,9 +266,114 @@ def report_view(request):
         'companies': companies,
         'stats': stats,
         'count': len(companies),
+        'selected_inns': selected_inns,
     }
     return render(request, 'dashboard_app/report.html', context)
 
+
+@require_POST
+@director_required
+def report_export_excel_view(request):
+    selected_inns = request.POST.getlist('company_inn')
+    if not selected_inns:
+        messages.warning(request, 'Выберите хотя бы одну компанию для экспорта.')
+        return redirect('dashboard')
+
+    dataset = load_dataset()
+    companies = [row for row in dataset if row.get('inn') in selected_inns]
+
+    if not companies:
+        messages.error(request, 'Не удалось найти данные для выбранных компаний.')
+        return redirect('dashboard')
+
+    return _build_excel_response(companies)
+
+
+@require_POST
+@director_required
+def send_report_notification_view(request):
+    selected_inns = request.POST.getlist('company_inn')
+    recipient_id = request.POST.get('recipient_id')
+
+    if not recipient_id:
+        messages.error(request, 'Выберите получателя отчёта.')
+        return redirect('dashboard')
+
+    if not selected_inns:
+        messages.warning(request, 'Отметьте компании, чтобы сформировать отчёт.')
+        return redirect('dashboard')
+
+    User = get_user_model()
+    try:
+        recipient = User.objects.get(id=recipient_id)
+    except User.DoesNotExist:
+        messages.error(request, 'Выбранный пользователь не найден.')
+        return redirect('dashboard')
+
+    dataset = load_dataset()
+    companies = [row for row in dataset if row.get('inn') in selected_inns]
+    if not companies:
+        messages.error(request, 'Не удалось найти данные для выбранных компаний.')
+        return redirect('dashboard')
+
+    preview = [
+        row.get('short_name') or row.get('full_name') or row.get('inn')
+        for row in companies[:3]
+    ]
+
+    Notification.objects.create(
+        recipient=recipient,
+        sender=request.user,
+        notification_type=Notification.Type.REPORT,
+        title='Получен новый Excel-отчёт',
+        message=f'Директор {request.user.get_full_name() or request.user.username} отправил вам отчёт по {len(companies)} компаниям.',
+        payload={
+            'inns': selected_inns,
+            'count': len(companies),
+            'companies_preview': preview,
+            'sent_at': timezone.now().isoformat(),
+        },
+    )
+
+    employees = User.objects.filter(profile__role=UserProfile.ROLE_EMPLOYEE)
+    Notification.objects.bulk_create(
+        [
+            Notification(
+                recipient=user,
+                sender=request.user,
+                notification_type=Notification.Type.DATA,
+                title='Обновлены данные отчёта',
+                message='Директор обновил выборку компаний и пересоздал отчёт.',
+                payload={
+                    'count': len(companies),
+                    'companies_preview': preview,
+                    'updated_at': timezone.now().isoformat(),
+                },
+            )
+            for user in employees
+        ]
+    )
+
+    messages.success(request, f'Отчёт отправлен пользователю {recipient.get_full_name() or recipient.username}.')
+    return redirect('dashboard')
+
+
+@employee_or_director_required
+def notification_download_report_view(request, pk: int):
+    notification = get_object_or_404(Notification, pk=pk, recipient=request.user)
+    payload = notification.payload or {}
+    inns = payload.get('inns')
+    if not inns:
+        messages.error(request, 'В этом уведомлении нет вложенного отчёта.')
+        return redirect('dashboard')
+
+    dataset = load_dataset()
+    companies = [row for row in dataset if row.get('inn') in inns]
+    if not companies:
+        messages.error(request, 'Данные компаний устарели или недоступны.')
+        return redirect('dashboard')
+
+    return _build_excel_response(companies, filename_prefix=f'notification_{pk}')
 
 @require_POST
 @director_required
