@@ -23,17 +23,24 @@ body {
   padding: 16px 40px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 32px;
   border-bottom: 1px solid #e0e0e0;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .top-header-brand {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-shrink: 0;
+  text-decoration: none;
+  color: inherit;
+  transition: opacity 0.2s ease;
+}
+
+.top-header-brand:hover {
+  opacity: 0.8;
 }
 
 .brand-logo {
@@ -65,6 +72,9 @@ body {
   flex: 1;
   min-width: 250px;
   max-width: 650px;
+  display: flex;
+  justify-content: center;
+  margin: 0 auto;
 }
 
 .top-header-account {
@@ -72,7 +82,9 @@ body {
   align-items: center;
   justify-content: flex-end;
   gap: 14px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .account-avatar {
@@ -502,6 +514,28 @@ body {
   border-radius: 16px;
 }
 
+.btn-select-all {
+  margin-left: 12px;
+  padding: 6px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #10472b;
+  background: transparent;
+  border: 1px solid #10472b;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-select-all:hover {
+  background: #10472b;
+  color: #fff;
+}
+
+.btn-select-all:active {
+  transform: scale(0.98);
+}
+
 .selected-count {
   font-family: "Inter", sans-serif;
   font-size: 16px;
@@ -721,17 +755,24 @@ body {
     flex-direction: column;
     align-items: flex-start;
     gap: 16px;
+    padding: 16px 20px;
+  }
+
+  .top-header-brand {
+    width: 100%;
   }
 
   .top-header-account {
     width: 100%;
     justify-content: space-between;
     gap: 10px;
+    margin-left: 0;
   }
 
   .top-header-search {
     width: 100%;
     max-width: none;
+    margin: 0;
   }
 }
 

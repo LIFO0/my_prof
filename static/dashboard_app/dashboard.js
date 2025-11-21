@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initPagination();
   initCompanyTooltip();
   initMessages();
+  initAutoSort();
 });
 
 function initSearchSync() {
@@ -91,6 +92,29 @@ function initSortableTable() {
 
   let sortState = { index: null, direction: 1 };
 
+  const sortTable = (headerIndex, direction) => {
+    const header = headers[headerIndex];
+    if (!header) return;
+    
+    const type = header.dataset.sort;
+    sortState = { index: headerIndex, direction };
+
+    // В строках первая колонка - checkbox (без data-sort), поэтому нужно добавить +1
+    // headers: Компания(0), ОКВЭД(1), Выручка(2), ...
+    // row.children: checkbox(0), Компания(1), ОКВЭД(2), Выручка(3), ...
+    const cellIndex = headerIndex + 1;
+
+    const sortedRows = [...dataRows].sort((a, b) => {
+      const result =
+        type === 'number'
+          ? compareNumbers(a, b, cellIndex)
+          : compareText(a, b, cellIndex);
+      return result * direction;
+    });
+
+    sortedRows.forEach((row) => tbody.appendChild(row));
+  };
+
   headers.forEach((header, index) => {
     header.addEventListener('click', () => {
       const type = header.dataset.sort;
@@ -99,19 +123,12 @@ function initSortableTable() {
         direction =
           sortState.index === index ? sortState.direction * -1 : 1;
       }
-      sortState = { index, direction };
-
-      const sortedRows = [...dataRows].sort((a, b) => {
-        const result =
-          type === 'number'
-            ? compareNumbers(a, b, index)
-            : compareText(a, b, index);
-        return result * direction;
-      });
-
-      sortedRows.forEach((row) => tbody.appendChild(row));
+      sortTable(index, direction);
     });
   });
+
+  // Сохраняем функцию сортировки для использования извне
+  window.sortTableByIndex = sortTable;
 }
 
 function compareNumbers(rowA, rowB, index) {
@@ -135,7 +152,7 @@ function initQuickFilters() {
   if (!buttons.length || !form) return;
 
   const presets = {
-    'top-revenue': { min_revenue: 500000000 },
+    'top-revenue': { min_revenue: 500000000, sort: 'revenue-desc' },
     'hi-staff': { min_staff: 100 },
     'usn-only': { uses_usn: 'yes' },
   };
@@ -146,12 +163,43 @@ function initQuickFilters() {
       const config = presets[presetName];
       if (!config) return;
 
-      Object.entries(config).forEach(([field, value]) => {
-        const input = form.querySelector(`[name="${field}"]`);
-        if (input) {
-          input.value = value ?? '';
+      // Сначала сбрасываем все фильтры (кроме тех, что будут установлены)
+      const allInputs = form.querySelectorAll('input[type="text"], input[type="number"], select');
+      allInputs.forEach(input => {
+        if (input.type === 'text' || input.type === 'number') {
+          input.value = '';
+        } else if (input.tagName === 'SELECT') {
+          input.selectedIndex = 0; // Выбираем первую опцию (обычно "Все" или "Не важно")
         }
       });
+
+      Object.entries(config).forEach(([field, value]) => {
+        if (field === 'sort') {
+          // Добавляем скрытое поле для сортировки
+          let sortInput = form.querySelector('input[name="sort"]');
+          if (!sortInput) {
+            sortInput = document.createElement('input');
+            sortInput.type = 'hidden';
+            sortInput.name = 'sort';
+            form.appendChild(sortInput);
+          }
+          sortInput.value = value;
+          return;
+        }
+        const input = form.querySelector(`[name="${field}"]`);
+        if (input) {
+          if (input.tagName === 'SELECT') {
+            // Для select ищем опцию с нужным value
+            const option = Array.from(input.options).find(opt => opt.value === value);
+            if (option) {
+              input.value = value;
+            }
+          } else {
+            input.value = value ?? '';
+          }
+        }
+      });
+      
       form.submit();
     });
   });
@@ -179,24 +227,34 @@ function initSelectionControls() {
   const hasRecipients = sendBtn?.dataset.hasRecipients === 'true';
 
   const updateState = () => {
-    const selected = Array.from(checkboxes).filter((input) => input.checked);
-    counter.textContent = `${selected.length} ${pluralize(
-      selected.length,
+    // Считаем выбранные компании: видимые чекбоксы + скрытые поля
+    const visibleSelected = Array.from(checkboxes).filter((input) => input.checked);
+    const hiddenInputs = form.querySelectorAll('input[type="hidden"][name="company_inn"]');
+    const hiddenSelected = Array.from(hiddenInputs);
+    const totalSelected = visibleSelected.length + hiddenSelected.length;
+    
+    counter.textContent = `${totalSelected} ${pluralize(
+      totalSelected,
       'компания',
       'компании',
       'компаний'
     )} выбрано`;
-    submitBtn.disabled = selected.length === 0;
+    submitBtn.disabled = totalSelected === 0;
     if (accreditationBtn) {
-      accreditationBtn.disabled = selected.length === 0;
+      accreditationBtn.disabled = totalSelected === 0;
     }
     if (sendBtn) {
-      sendBtn.disabled = selected.length === 0 || !hasRecipients;
+      // Кнопка отправки доступна, если есть выбранные компании
+      sendBtn.disabled = totalSelected === 0;
     }
     if (selectAll) {
-      selectAll.indeterminate =
-        selected.length > 0 && selected.length < checkboxes.length;
-      selectAll.checked = selected.length === checkboxes.length;
+      const allCompaniesData = document.getElementById('all-companies-data');
+      const allInnsStr = allCompaniesData?.dataset.allInns || '';
+      const allInns = allInnsStr ? allInnsStr.split(',').filter(inn => inn.trim()) : [];
+      const totalCount = allInns.length > 0 ? allInns.length : checkboxes.length;
+      
+      selectAll.indeterminate = totalSelected > 0 && totalSelected < totalCount;
+      selectAll.checked = totalCount > 0 && totalSelected === totalCount;
     }
   };
 
@@ -208,9 +266,104 @@ function initSelectionControls() {
 
   if (selectAll) {
     selectAll.addEventListener('change', () => {
-      checkboxes.forEach((input) => {
-        input.checked = selectAll.checked;
+      const allCompaniesData = document.getElementById('all-companies-data');
+      const allInnsStr = allCompaniesData?.dataset.allInns || '';
+      
+      if (allInnsStr) {
+        // Выбираем все компании из отфильтрованного списка
+        const allInns = allInnsStr.split(',').filter(inn => inn.trim());
+        const checkboxesArray = Array.from(checkboxes);
+        
+        allInns.forEach(inn => {
+          const checkbox = checkboxesArray.find(cb => cb.value === inn);
+          if (checkbox) {
+            checkbox.checked = selectAll.checked;
+          } else {
+            // Если чекбокса нет на странице, создаем или удаляем скрытое поле
+            let hiddenInput = form.querySelector(`input[type="hidden"][name="company_inn"][value="${inn}"]`);
+            if (selectAll.checked) {
+              if (!hiddenInput) {
+                hiddenInput = document.createElement('input');
+                hiddenInput.type = 'hidden';
+                hiddenInput.name = 'company_inn';
+                hiddenInput.value = inn;
+                form.appendChild(hiddenInput);
+              }
+            } else {
+              if (hiddenInput) {
+                hiddenInput.remove();
+              }
+            }
+          }
+        });
+      } else {
+        // Если нет данных о всех компаниях, работаем только с видимыми
+        checkboxes.forEach((input) => {
+          input.checked = selectAll.checked;
+        });
+      }
+      updateState();
+    });
+  }
+
+  // Кнопка "Выбрать всё" - выбирает все компании из отфильтрованного списка
+  const selectAllButton = document.getElementById('select-all-button');
+  if (selectAllButton) {
+    selectAllButton.addEventListener('click', () => {
+      const allCompaniesData = document.getElementById('all-companies-data');
+      if (!allCompaniesData) return;
+      
+      const allInnsStr = allCompaniesData.dataset.allInns || '';
+      if (!allInnsStr) return;
+      
+      const allInns = allInnsStr.split(',').filter(inn => inn.trim());
+      const checkboxesArray = Array.from(checkboxes);
+      
+      // Проверяем, все ли уже выбраны (учитываем и видимые чекбоксы, и скрытые поля)
+      const allSelected = allInns.length > 0 && allInns.every(inn => {
+        const checkbox = checkboxesArray.find(cb => cb.value === inn);
+        if (checkbox) {
+          return checkbox.checked;
+        } else {
+          // Проверяем скрытое поле
+          const hiddenInput = form.querySelector(`input[type="hidden"][name="company_inn"][value="${inn}"]`);
+          return hiddenInput !== null;
+        }
       });
+      
+      // Выбираем или снимаем выбор со всех компаний
+      allInns.forEach(inn => {
+        // Ищем чекбокс на текущей странице
+        const checkbox = checkboxesArray.find(cb => cb.value === inn);
+        if (checkbox) {
+          checkbox.checked = !allSelected;
+        } else {
+          // Если чекбокса нет на странице, создаем скрытое поле
+          let hiddenInput = form.querySelector(`input[type="hidden"][name="company_inn"][value="${inn}"]`);
+          if (!allSelected) {
+            // Нужно добавить скрытое поле
+            if (!hiddenInput) {
+              hiddenInput = document.createElement('input');
+              hiddenInput.type = 'hidden';
+              hiddenInput.name = 'company_inn';
+              hiddenInput.value = inn;
+              form.appendChild(hiddenInput);
+            }
+          } else {
+            // Нужно удалить скрытое поле
+            if (hiddenInput) {
+              hiddenInput.remove();
+            }
+          }
+        }
+      });
+      
+      // Обновляем состояние чекбокса "Выбрать всё"
+      if (selectAll) {
+        selectAll.checked = !allSelected;
+        selectAll.indeterminate = false;
+      }
+      
       updateState();
     });
   }
@@ -242,7 +395,12 @@ function initSelectionControls() {
         .then((data) => {
           if (data.success) {
             accreditationBtn.textContent = 'Готово';
-            setTimeout(() => window.location.reload(), 600);
+            // Сохраняем текущие фильтры при перезагрузке
+            const currentUrl = window.location.href;
+            setTimeout(() => {
+              // Принудительная перезагрузка с очисткой кэша для обновления статистики
+              window.location.href = currentUrl.split('?')[0] + (window.location.search || '') + (window.location.search ? '&' : '?') + '_t=' + Date.now();
+            }, 600);
           } else {
             throw new Error(data.message || 'Не удалось обновить статусы');
           }
@@ -278,11 +436,41 @@ function initSelectionControls() {
       hiddenInputsContainer.appendChild(hidden);
     });
     sendSummary.textContent = `Количество компаний в отчёте: ${selected.length}`;
+    
+    // Сброс формы и инициализация полей
+    const sendForm = document.getElementById('send-report-form');
+    const sendMethodSelect = document.getElementById('send-method-select');
+    const recipientSelectLabel = document.getElementById('recipient-select-label');
+    const recipientSelect = document.getElementById('recipient-select');
+    const emailSelectLabel = document.getElementById('email-select-label');
+    const emailSelect = document.getElementById('recipient-email-select');
+    
+    if (sendForm) {
+      sendForm.reset();
+    }
+    
+    // Устанавливаем способ отправки по умолчанию
+    if (sendMethodSelect) {
+      sendMethodSelect.value = 'user';
+    }
+    
+    // Показываем выбор пользователя, скрываем выбор email
+    if (recipientSelectLabel) recipientSelectLabel.style.display = 'block';
+    if (recipientSelect) {
+      recipientSelect.setAttribute('required', 'required');
+      recipientSelect.value = '';
+    }
+    if (emailSelectLabel) emailSelectLabel.style.display = 'none';
+    if (emailSelect) {
+      emailSelect.removeAttribute('required');
+      emailSelect.value = '';
+    }
+    
     sendModal.classList.add('is-open');
     sendModal.setAttribute('aria-hidden', 'false');
   };
 
-  if (sendBtn && hasRecipients) {
+  if (sendBtn) {
     sendBtn.addEventListener('click', () => {
       const selected = Array.from(checkboxes).filter((input) => input.checked);
       if (!selected.length) return;
@@ -303,6 +491,59 @@ function initSelectionControls() {
         closeSendModal();
       }
     });
+
+    // Переключение между выбором пользователя и выбором email
+    const sendMethodSelect = document.getElementById('send-method-select');
+    const recipientSelectLabel = document.getElementById('recipient-select-label');
+    const recipientSelect = document.getElementById('recipient-select');
+    const emailSelectLabel = document.getElementById('email-select-label');
+    const emailSelect = document.getElementById('recipient-email-select');
+
+    if (sendMethodSelect) {
+      sendMethodSelect.addEventListener('change', (e) => {
+        if (e.target.value === 'email') {
+          // Показываем выбор email, скрываем выбор пользователя
+          if (recipientSelectLabel) recipientSelectLabel.style.display = 'none';
+          if (recipientSelect) {
+            recipientSelect.removeAttribute('required');
+            recipientSelect.value = '';
+          }
+          if (emailSelectLabel) emailSelectLabel.style.display = 'block';
+          if (emailSelect) emailSelect.setAttribute('required', 'required');
+        } else {
+          // Показываем выбор пользователя, скрываем выбор email
+          if (recipientSelectLabel) recipientSelectLabel.style.display = 'block';
+          if (recipientSelect) recipientSelect.setAttribute('required', 'required');
+          if (emailSelectLabel) emailSelectLabel.style.display = 'none';
+          if (emailSelect) {
+            emailSelect.removeAttribute('required');
+            emailSelect.value = '';
+          }
+        }
+      });
+    }
+
+    // Валидация формы перед отправкой
+    if (sendForm) {
+      sendForm.addEventListener('submit', (e) => {
+        const sendMethod = sendMethodSelect?.value;
+        if (sendMethod === 'email') {
+          const email = emailSelect?.value?.trim();
+          if (!email) {
+            e.preventDefault();
+            alert('Пожалуйста, выберите email адрес получателя из списка.');
+            return false;
+          }
+        } else {
+          const recipientId = recipientSelect?.value;
+          if (!recipientId) {
+            e.preventDefault();
+            alert('Пожалуйста, выберите получателя из списка.');
+            return false;
+          }
+        }
+      });
+    }
   }
 
   // Добавляем обработчик для кнопки создания отчёта
@@ -703,4 +944,37 @@ function initMessages() {
       timeoutId = setTimeout(hideMessage, 10000);
     });
   });
+}
+
+function initAutoSort() {
+  // Проверяем параметр сортировки из URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const sortParam = urlParams.get('sort');
+  
+  if (sortParam === 'revenue-desc') {
+    // Находим индекс колонки "Выручка" в массиве headers с data-sort
+    // headers: Компания(0), ОКВЭД(1), Выручка(2), ...
+    const table = document.getElementById('companies-table');
+    if (!table) return;
+    
+    const headers = table.querySelectorAll('thead th[data-sort]');
+    let revenueHeaderIndex = -1;
+    
+    // Находим индекс заголовка "Выручка"
+    headers.forEach((header, index) => {
+      if (header.textContent.trim().includes('Выручка')) {
+        revenueHeaderIndex = index;
+      }
+    });
+    
+    if (revenueHeaderIndex >= 0) {
+      // Ждем, пока таблица будет полностью загружена
+      setTimeout(() => {
+        if (window.sortTableByIndex) {
+          // Сортируем по убыванию (direction = -1)
+          window.sortTableByIndex(revenueHeaderIndex, -1);
+        }
+      }, 100);
+    }
+  }
 }

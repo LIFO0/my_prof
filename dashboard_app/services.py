@@ -150,12 +150,9 @@ def calculate_stats(rows: Iterable[Dict]) -> Dict[str, Optional[float | int]]:
 
     top_company = None
     accredited_count = 0
+    
+    # Подсчитываем аккредитованные компании (независимо от выручки)
     for row in rows:
-        revenue = row.get('revenue')
-        if revenue is None:
-            continue
-        if not top_company or revenue > top_company['revenue']:
-            top_company = row
         accreditation = row.get('accreditation')
         if accreditation:
             status = getattr(accreditation, 'status', '') or (
@@ -163,6 +160,14 @@ def calculate_stats(rows: Iterable[Dict]) -> Dict[str, Optional[float | int]]:
             )
             if isinstance(status, str) and 'действ' in status.lower():
                 accredited_count += 1
+    
+    # Находим топ-компанию по выручке
+    for row in rows:
+        revenue = row.get('revenue')
+        if revenue is None:
+            continue
+        if not top_company or revenue > top_company['revenue']:
+            top_company = row
 
     return {
         'count': len(rows),

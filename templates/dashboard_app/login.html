@@ -4,7 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="{% static 'dashboard_app/img/logo.png' %}">
     <title>Вход в систему</title>
+    <link rel="stylesheet" href="{% static 'dashboard_app/styles.css' %}">
     <style>
         * {
             margin: 0;
@@ -23,12 +25,19 @@
         }
 
         .login-container {
-            background: #d9d9d9;
             border-radius: 32px;
             padding: 60px 50px;
             width: 100%;
             max-width: 460px;
             box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .login-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 32px;
+            justify-content: center;
         }
 
         .login-card h1 {
@@ -143,6 +152,13 @@
 <body>
     <div class="login-container">
         <div class="login-card">
+            <a href="{% url 'dashboard' %}" class="top-header-brand login-brand">
+                <img src="{% static 'dashboard_app/img/logo.png' %}" alt="Логотип Метрика" class="brand-logo">
+                <div class="brand-text">
+                    <span class="brand-name">Метрика</span>
+                    <span class="brand-tagline">аналитическая платформа</span>
+                </div>
+            </a>
             <h1>Вход в систему</h1>
             <p>Войдите в свой аккаунт для доступа к приложению</p>
 

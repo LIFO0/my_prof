@@ -37,12 +37,20 @@ def login_view(request):
         user = authenticate(request, username=username, password=password)
         if user is not None:
             # Проверяем, что у пользователя есть профиль
-            if not hasattr(user, 'profile'):
+            try:
+                profile = user.profile
+            except UserProfile.DoesNotExist:
                 messages.error(request, 'У пользователя отсутствует профиль. Обратитесь к администратору.')
-            else:
-                login(request, user)
-                next_url = request.GET.get('next', 'dashboard')
-                return redirect(next_url)
+                return render(request, 'dashboard_app/login.html')
+            
+            # Проверяем, что пользователь активен
+            if not user.is_active:
+                messages.error(request, 'Ваш аккаунт деактивирован. Обратитесь к администратору.')
+                return render(request, 'dashboard_app/login.html')
+            
+            login(request, user)
+            next_url = request.GET.get('next', 'dashboard')
+            return redirect(next_url)
         else:
             messages.error(request, 'Неверное имя пользователя или пароль.')
     return render(request, 'dashboard_app/login.html')
@@ -207,8 +215,13 @@ def dashboard_view(request):
         profile__role=UserProfile.ROLE_EMPLOYEE
     ).order_by('first_name', 'username')
 
+    # Получаем только непрочитанные уведомления (не письма)
     unread_notifications = list(
-        request.user.notifications.filter(is_read=False).order_by('created_at')
+        request.user.notifications.filter(
+            is_read=False
+        ).exclude(
+            notification_type=Notification.Type.EMAIL
+        ).order_by('created_at')
     )
     notifications_payload = [
         {
@@ -225,9 +238,24 @@ def dashboard_view(request):
         }
         for note in unread_notifications
     ]
+    # Помечаем только уведомления (не письма) как прочитанные
     if unread_notifications:
-        Notification.objects.filter(id__in=[note.id for note in unread_notifications]).update(is_read=True)
+        Notification.objects.filter(
+            id__in=[note.id for note in unread_notifications]
+        ).exclude(
+            notification_type=Notification.Type.EMAIL
+        ).update(is_read=True)
 
+    # Подсчет непрочитанных писем
+    unread_emails_count = Notification.objects.filter(
+        recipient=request.user,
+        notification_type=Notification.Type.EMAIL,
+        is_read=False
+    ).count()
+
+    # Список всех ИНН отфильтрованных компаний (для функции "Выбрать всё")
+    all_filtered_inns = [row.get('inn') for row in filtered_rows if row.get('inn')]
+    
     context = {
         'filters': filters,
         'active_filters': _describe_active_filters(filters),
@@ -242,6 +270,8 @@ def dashboard_view(request):
         'user': request.user,
         'report_recipients': report_recipients,
         'notifications_payload': notifications_payload,
+        'unread_emails_count': unread_emails_count,
+        'all_filtered_inns': all_filtered_inns,  # Все ИНН отфильтрованных компаний
     }
     return render(request, 'dashboard_app/dashboard.html', context)
 
@@ -293,22 +323,45 @@ def report_export_excel_view(request):
 @director_required
 def send_report_notification_view(request):
     selected_inns = request.POST.getlist('company_inn')
+    send_method = request.POST.get('send_method', 'user')
     recipient_id = request.POST.get('recipient_id')
-
-    if not recipient_id:
-        messages.error(request, 'Выберите получателя отчёта.')
-        return redirect('dashboard')
+    recipient_email = request.POST.get('recipient_email', '').strip()
+    use_email = request.POST.get('use_email', 'false') == 'true'
 
     if not selected_inns:
         messages.warning(request, 'Отметьте компании, чтобы сформировать отчёт.')
         return redirect('dashboard')
 
     User = get_user_model()
-    try:
-        recipient = User.objects.get(id=recipient_id)
-    except User.DoesNotExist:
-        messages.error(request, 'Выбранный пользователь не найден.')
-        return redirect('dashboard')
+    recipient = None
+
+    if send_method == 'email':
+        # Отправка по указанному email
+        if not recipient_email:
+            messages.error(request, 'Укажите email адрес получателя.')
+            return redirect('dashboard')
+        
+        # Ищем пользователя с таким internal_email
+        try:
+            recipient = User.objects.get(profile__internal_email=recipient_email)
+        except User.DoesNotExist:
+            messages.error(
+                request,
+                f'Пользователь с email {recipient_email} не найден в системе. '
+                'Убедитесь, что email адрес указан правильно.'
+            )
+            return redirect('dashboard')
+    else:
+        # Отправка выбранному пользователю
+        if not recipient_id:
+            messages.error(request, 'Выберите получателя отчёта.')
+            return redirect('dashboard')
+        
+        try:
+            recipient = User.objects.get(id=recipient_id)
+        except User.DoesNotExist:
+            messages.error(request, 'Выбранный пользователь не найден.')
+            return redirect('dashboard')
 
     dataset = load_dataset()
     companies = [row for row in dataset if row.get('inn') in selected_inns]
@@ -321,19 +374,62 @@ def send_report_notification_view(request):
         for row in companies[:3]
     ]
 
-    Notification.objects.create(
-        recipient=recipient,
-        sender=request.user,
-        notification_type=Notification.Type.REPORT,
-        title='Получен новый Excel-отчёт',
-        message=f'Директор {request.user.get_full_name() or request.user.username} отправил вам отчёт по {len(companies)} компаниям.',
-        payload={
-            'inns': selected_inns,
-            'count': len(companies),
-            'companies_preview': preview,
-            'sent_at': timezone.now().isoformat(),
-        },
-    )
+    sender_email = request.user.profile.get_internal_email()
+    recipient_internal_email = recipient.profile.get_internal_email()
+
+    if use_email:
+        # Отправка как внутреннее письмо
+        subject = f'Отчёт по IT-компаниям ({len(companies)} организаций)'
+        message_body = f'''Здравствуйте!
+
+Вам отправлен отчёт по {len(companies)} IT-компаниям Калининградской области.
+
+Отправитель: {request.user.get_full_name() or request.user.username} ({sender_email})
+Дата формирования: {timezone.localtime(timezone.now()).strftime("%d.%m.%Y %H:%M")}
+
+Отчёт прикреплён в формате Excel.
+
+---
+Это автоматическое сообщение от системы дашборда IT-компаний.
+'''
+        
+        Notification.objects.create(
+            recipient=recipient,
+            sender=request.user,
+            notification_type=Notification.Type.EMAIL,
+            title='Новое письмо с отчётом',
+            subject=subject,
+            message=message_body,
+            is_read=False,
+            payload={
+                'inns': selected_inns,
+                'count': len(companies),
+                'companies_preview': preview,
+                'sent_at': timezone.now().isoformat(),
+                'sender_email': sender_email,
+                'recipient_email': recipient_internal_email,
+            },
+        )
+        messages.success(
+            request,
+            f'Письмо с отчётом отправлено на {recipient_internal_email}'
+        )
+    else:
+        # Старый способ - уведомление
+        Notification.objects.create(
+            recipient=recipient,
+            sender=request.user,
+            notification_type=Notification.Type.REPORT,
+            title='Получен новый Excel-отчёт',
+            message=f'Директор {request.user.get_full_name() or request.user.username} отправил вам отчёт по {len(companies)} компаниям.',
+            payload={
+                'inns': selected_inns,
+                'count': len(companies),
+                'companies_preview': preview,
+                'sent_at': timezone.now().isoformat(),
+            },
+        )
+        messages.success(request, f'Отчёт отправлен пользователю {recipient.get_full_name() or recipient.username}.')
 
     employees = User.objects.filter(profile__role=UserProfile.ROLE_EMPLOYEE)
     Notification.objects.bulk_create(
@@ -354,13 +450,22 @@ def send_report_notification_view(request):
         ]
     )
 
-    messages.success(request, f'Отчёт отправлен пользователю {recipient.get_full_name() or recipient.username}.')
     return redirect('dashboard')
 
 
 @employee_or_director_required
 def notification_download_report_view(request, pk: int):
-    notification = get_object_or_404(Notification, pk=pk, recipient=request.user)
+    # Пользователь может скачивать только свои входящие или отправленные письма/уведомления
+    notification = get_object_or_404(
+        Notification,
+        pk=pk
+    )
+    
+    # Проверяем доступ
+    if notification.recipient != request.user and notification.sender != request.user:
+        messages.error(request, 'У вас нет доступа к этому отчёту.')
+        return redirect('dashboard')
+    
     payload = notification.payload or {}
     inns = payload.get('inns')
     if not inns:
@@ -397,4 +502,142 @@ def accreditation_sync_view(request):
         )
 
     results = sync_accreditation_statuses(inns)
+    
+    # Очищаем кэш датасета, чтобы статистика обновилась
+    from .services import load_dataset
+    load_dataset.cache_clear()
+    
     return JsonResponse({'success': True, 'results': results})
+
+
+@employee_or_director_required
+def mail_inbox_view(request):
+    """Страница входящих писем."""
+    from django.core.paginator import Paginator
+    
+    # Получаем все письма (EMAIL) для текущего пользователя
+    emails = Notification.objects.filter(
+        recipient=request.user,
+        notification_type=Notification.Type.EMAIL
+    ).select_related('sender').order_by('-created_at')
+    
+    # Фильтр по прочитанным/непрочитанным
+    filter_read = request.GET.get('filter', 'all')
+    if filter_read == 'unread':
+        emails = emails.filter(is_read=False)
+    elif filter_read == 'read':
+        emails = emails.filter(is_read=True)
+    
+    # Пагинация
+    paginator = Paginator(emails, 15)
+    page_number = request.GET.get('page', 1)
+    try:
+        page_obj = paginator.get_page(page_number)
+    except:
+        page_obj = paginator.get_page(1)
+    
+    # Статистика
+    total_count = Notification.objects.filter(
+        recipient=request.user,
+        notification_type=Notification.Type.EMAIL
+    ).count()
+    unread_count = Notification.objects.filter(
+        recipient=request.user,
+        notification_type=Notification.Type.EMAIL,
+        is_read=False
+    ).count()
+    
+    # Подсчет непрочитанных писем для header
+    unread_emails_count = unread_count
+    
+    context = {
+        'emails': page_obj,
+        'page_obj': page_obj,
+        'total_count': total_count,
+        'unread_count': unread_count,
+        'filter_read': filter_read,
+        'user_email': request.user.profile.get_internal_email(),
+        'unread_emails_count': unread_emails_count,
+    }
+    return render(request, 'dashboard_app/mail_inbox.html', context)
+
+
+@employee_or_director_required
+def mail_sent_view(request):
+    """Страница отправленных писем."""
+    from django.core.paginator import Paginator
+    
+    # Получаем все письма, отправленные текущим пользователем
+    emails = Notification.objects.filter(
+        sender=request.user,
+        notification_type=Notification.Type.EMAIL
+    ).select_related('recipient').order_by('-created_at')
+    
+    # Пагинация
+    paginator = Paginator(emails, 15)
+    page_number = request.GET.get('page', 1)
+    try:
+        page_obj = paginator.get_page(page_number)
+    except:
+        page_obj = paginator.get_page(1)
+    
+    # Подсчет непрочитанных писем для header
+    unread_emails_count = Notification.objects.filter(
+        recipient=request.user,
+        notification_type=Notification.Type.EMAIL,
+        is_read=False
+    ).count()
+    
+    context = {
+        'emails': page_obj,
+        'page_obj': page_obj,
+        'user_email': request.user.profile.get_internal_email(),
+        'unread_emails_count': unread_emails_count,
+    }
+    return render(request, 'dashboard_app/mail_sent.html', context)
+
+
+@employee_or_director_required
+def mail_view_view(request, pk: int):
+    """Просмотр конкретного письма."""
+    # Пользователь может просматривать только свои входящие или отправленные письма
+    email = get_object_or_404(
+        Notification,
+        pk=pk,
+        notification_type=Notification.Type.EMAIL
+    )
+    
+    # Проверяем доступ
+    if email.recipient != request.user and email.sender != request.user:
+        messages.error(request, 'У вас нет доступа к этому письму.')
+        return redirect('mail_inbox')
+    
+    # Отмечаем как прочитанное, если это входящее письмо
+    if email.recipient == request.user and not email.is_read:
+        email.is_read = True
+        email.save()
+    
+    # Загружаем данные компаний, если есть вложение
+    companies = []
+    payload = email.payload or {}
+    inns = payload.get('inns')
+    if inns:
+        dataset = load_dataset()
+        companies = [row for row in dataset if row.get('inn') in inns]
+    
+    # Подсчет непрочитанных писем для header
+    unread_emails_count = Notification.objects.filter(
+        recipient=request.user,
+        notification_type=Notification.Type.EMAIL,
+        is_read=False
+    ).count()
+    
+    context = {
+        'email': email,
+        'companies': companies,
+        'is_incoming': email.recipient == request.user,
+        'sender_email': email.sender.profile.get_internal_email() if email.sender else '',
+        'recipient_email': email.recipient.profile.get_internal_email(),
+        'unread_emails_count': unread_emails_count,
+    }
+    return render(request, 'dashboard_app/mail_view.html', context)

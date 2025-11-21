@@ -1,9 +1,14 @@
 @echo off
-chcp 65001
+chcp 65001 >nul 2>&1
 setlocal enabledelayedexpansion
 
 REM Navigate to project root (current directory of this script)
 cd /d "%~dp0"
+if errorlevel 1 (
+    echo Ошибка: Не удалось перейти в директорию скрипта.
+    pause
+    exit /b 1
+)
 
 echo.
 echo === Django Dashboard Launcher ===
@@ -15,6 +20,28 @@ if exist "venv\Scripts\activate.bat" (
     call "venv\Scripts\activate.bat"
 ) else (
     echo Виртуальное окружение не найдено, используется системный Python.
+    echo.
+    echo Проверяем установленные зависимости...
+    python -c "import django" >nul 2>&1
+    if errorlevel 1 (
+        echo Django не найден. Устанавливаем зависимости из requirements.txt...
+        python -m pip install -r requirements.txt
+        if errorlevel 1 (
+            echo ОШИБКА: Не удалось установить зависимости!
+            pause
+            exit /b 1
+        )
+        echo Зависимости успешно установлены.
+    )
+)
+
+echo.
+echo Проверяем наличие Python...
+python --version >nul 2>&1
+if errorlevel 1 (
+    echo ОШИБКА: Python не найден! Убедитесь, что Python установлен и добавлен в PATH.
+    pause
+    exit /b 1
 )
 
 echo.
@@ -22,7 +49,8 @@ echo Применяем миграции (на случай новых зави�
 python manage.py migrate
 if errorlevel 1 (
     echo Ошибка при выполнении миграций. Программа остановлена.
-    goto :eof
+    pause
+    exit /b 1
 )
 
 echo.

@@ -1,12 +1,15 @@
 {% load static %}
 {% load humanize %}
+{% load tz %}
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="{% static 'dashboard_app/img/logo.png' %}">
     <title>Метрика — панель администратора</title>
     <link rel="stylesheet" href="{% static 'dashboard_app/styles.css' %}">
+    <link rel="stylesheet" href="{% static 'dashboard_app/mail.css' %}">
     <script defer src="{% static 'dashboard_app/dashboard.js' %}"></script>
 </head>
 <body>
@@ -22,10 +25,11 @@
     {% endif %}
 
     <header class="top-header">
-        <div class="top-header-brand">
+        <a href="{% url 'dashboard' %}" class="top-header-brand">
             <img src="{% static 'dashboard_app/img/logo.png' %}" alt="Логотип Метрика" class="brand-logo">
             <div class="brand-text">
                 <span class="brand-name">Метрика</span>
+                <span class="brand-tagline">аналитическая платформа</span>
             </div>
         </a>
         <div class="top-header-search">
@@ -37,6 +41,12 @@
             </div>
         </div>
         <div class="top-header-account">
+            <a href="{% url 'mail_inbox' %}" class="mail-link">
+                📧 Почта
+                {% if unread_emails_count|default:0 > 0 %}
+                <span class="mail-link-badge">{{ unread_emails_count }}</span>
+                {% endif %}
+            </a>
             <img src="{% static 'dashboard_app/img/account.png' %}" alt="Учетная запись" class="account-avatar">
             <div class="account-details">
                 <span class="account-name">{{ user.get_full_name|default:user.username }}</span>
@@ -197,15 +207,17 @@
             <section class="data-section">
                 <form id="report-form" method="post" action="{% url 'report' %}">
                     {% csrf_token %}
+                    <div id="all-companies-data" data-all-inns="{{ all_filtered_inns|join:',' }}" style="display: none;"></div>
                     <div class="data-header">
                         <div class="selected-count">
                             <input type="checkbox" class="checkbox-main" id="select-all">
                             <span id="selected-count">0 компаний выбрано</span>
+                            <button type="button" class="btn-select-all" id="select-all-button">Выбрать всё</button>
                         </div>
                         <div class="data-header-buttons">
                             {% if is_director %}
                             <button type="button" class="btn-secondary" id="accreditation-button" data-action="{% url 'accreditation_sync' %}" disabled>Обновить аккредитацию</button>
-                            <button type="button" class="btn-secondary" id="send-report-button" data-has-recipients="{% if report_recipients %}true{% else %}false{% endif %}" {% if not report_recipients %}disabled{% endif %}>Отправить отчёт</button>
+                            <button type="button" class="btn-secondary" id="send-report-button" data-has-recipients="{% if report_recipients %}true{% else %}false{% endif %}">Отправить отчёт</button>
                             <button type="submit" class="btn-primary" id="report-button" disabled>Сформировать отчёт</button>
                             {% if not report_recipients %}
                             <p class="selection-hint">Нет сотрудников для отправки отчёта — добавьте их в панели администратора.</p>
@@ -297,7 +309,7 @@
                                                         <span class="status-badge status-badge-danger">{{ company.accreditation.status }}</span>
                                                     {% endif %}
                                                 {% endwith %}
-                                                <p class="update-time">Обновлено:<br>{{ company.accreditation.checked_at|date:"d.m.Y H:i" }}</p>
+                                                <p class="update-time">Обновлено:<br>{{ company.accreditation.checked_at|localtime|date:"d.m.Y H:i" }}</p>
                                             {% else %}
                                                 <span class="status-badge status-badge-muted">—</span>
                                             {% endif %}
@@ -368,7 +380,7 @@
             </div>
             <div class="footer-center">
                 <img src="{% static 'dashboard_app/img/footer_icon.png' %}" alt="Геолокация" class="footer-icon">
-                <span>Г. Краснодар</span>
+                <span>г. Калининград</span>
             </div>
             <div class="footer-right">
                 <span>admin@metrika.com</span>
@@ -382,16 +394,40 @@
         <div class="modal-panel">
             <button type="button" class="modal-close" data-modal-close="true" aria-label="Закрыть">×</button>
             <h3>Отправить Excel-отчёт сотруднику</h3>
-            <p class="modal-text">Система отправит выбранному сотруднику всплывающее уведомление с возможностью скачать XLSX-файл.</p>
+            <p class="modal-text">Выберите способ отправки: по пользователю или по email адресу из списка доступных сотрудников.</p>
             <form id="send-report-form" method="post" action="{% url 'report_send' %}">
                 {% csrf_token %}
                 <label class="form-control">
+                    <span>Способ отправки</span>
+                    <select name="send_method" id="send-method-select" required>
+                        <option value="user">Выбрать пользователя из списка</option>
+                        <option value="email">Указать email адрес</option>
+                    </select>
+                </label>
+                <label class="form-control" id="recipient-select-label">
                     <span>Получатель</span>
-                    <select name="recipient_id" required {% if not report_recipients %}disabled{% endif %}>
+                    <select name="recipient_id" id="recipient-select" {% if not report_recipients %}disabled{% endif %}>
+                        <option value="">Выберите получателя</option>
                         {% for recipient in report_recipients %}
-                        <option value="{{ recipient.id }}">{{ recipient.get_full_name|default:recipient.username }}</option>
+                        <option value="{{ recipient.id }}">{{ recipient.get_full_name|default:recipient.username }} ({{ recipient.profile.get_internal_email }})</option>
                         {% endfor %}
                     </select>
+                </label>
+                <label class="form-control" id="email-select-label" style="display: none;">
+                    <span>Email адрес получателя</span>
+                    <select name="recipient_email" id="recipient-email-select">
+                        <option value="">Выберите email адрес</option>
+                        {% for recipient in report_recipients %}
+                        <option value="{{ recipient.profile.get_internal_email }}">{{ recipient.get_full_name|default:recipient.username }} — {{ recipient.profile.get_internal_email }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label class="form-control" style="display: flex; align-items: center; gap: 8px; padding: 12px; background: #f8fafc; border-radius: 8px; margin-top: 12px;">
+                    <input type="checkbox" name="use_email" value="true" id="use-email-checkbox" checked style="width: 18px; height: 18px; cursor: pointer;">
+                    <div style="flex: 1;">
+                        <span style="font-weight: 600; display: block; margin-bottom: 4px;">Отправить по внутренней почте</span>
+                        <span style="font-size: 0.875rem; color: #64748b;">Письмо будет отправлено на внутренний email адрес получателя</span>
+                    </div>
                 </label>
                 <div class="modal-summary" id="send-report-summary">
                     Отметьте компании в таблице, чтобы прикрепить их к отчёту.
@@ -399,7 +435,7 @@
                 <div id="send-report-hidden-inputs"></div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-ghost" data-modal-close="true">Отмена</button>
-                    <button type="submit" class="btn btn-primary" {% if not report_recipients %}disabled{% endif %}>Отправить</button>
+                    <button type="submit" class="btn btn-primary">Отправить</button>
                 </div>
             </form>
         </div>
