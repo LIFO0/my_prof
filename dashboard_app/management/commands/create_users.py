@@ -1,0 +1,94 @@
+from django.core.management.base import BaseCommand
+from django.contrib.auth.models import User
+
+from dashboard_app.models import UserProfile
+
+
+class Command(BaseCommand):
+    help = 'Создаёт тестовых пользователей: директора и сотрудника'
+
+    def handle(self, *args, **options):
+        # Создаём директора
+        director, created = User.objects.get_or_create(
+            username='director',
+            defaults={
+                'first_name': 'Иван',
+                'last_name': 'Иванов',
+                'email': 'director@example.com',
+                'is_staff': True,
+            }
+        )
+        if created:
+            director.set_password('director123')
+            director.save()
+            self.stdout.write(
+                self.style.SUCCESS(f'[OK] Создан пользователь директора: {director.username}')
+            )
+        else:
+            self.stdout.write(
+                self.style.WARNING(f'[WARN] Пользователь директора уже существует: {director.username}')
+            )
+
+        # Создаём профиль директора
+        profile, created = UserProfile.objects.get_or_create(
+            user=director,
+            defaults={'role': UserProfile.ROLE_DIRECTOR}
+        )
+        if not created and profile.role != UserProfile.ROLE_DIRECTOR:
+            profile.role = UserProfile.ROLE_DIRECTOR
+            profile.save()
+            self.stdout.write(
+                self.style.SUCCESS(f'[OK] Обновлена роль пользователя {director.username} на директора')
+            )
+        elif created:
+            self.stdout.write(
+                self.style.SUCCESS(f'[OK] Создан профиль директора для {director.username}')
+            )
+
+        # Создаём сотрудника
+        employee, created = User.objects.get_or_create(
+            username='employee',
+            defaults={
+                'first_name': 'Петр',
+                'last_name': 'Петров',
+                'email': 'employee@example.com',
+            }
+        )
+        if created:
+            employee.set_password('employee123')
+            employee.save()
+            self.stdout.write(
+                self.style.SUCCESS(f'[OK] Создан пользователь сотрудника: {employee.username}')
+            )
+        else:
+            self.stdout.write(
+                self.style.WARNING(f'[WARN] Пользователь сотрудника уже существует: {employee.username}')
+            )
+
+        # Создаём профиль сотрудника
+        profile, created = UserProfile.objects.get_or_create(
+            user=employee,
+            defaults={'role': UserProfile.ROLE_EMPLOYEE}
+        )
+        if not created and profile.role != UserProfile.ROLE_EMPLOYEE:
+            profile.role = UserProfile.ROLE_EMPLOYEE
+            profile.save()
+            self.stdout.write(
+                self.style.SUCCESS(f'[OK] Обновлена роль пользователя {employee.username} на сотрудника')
+            )
+        elif created:
+            self.stdout.write(
+                self.style.SUCCESS(f'[OK] Создан профиль сотрудника для {employee.username}')
+            )
+
+        self.stdout.write(self.style.SUCCESS('\n' + '='*60))
+        self.stdout.write(self.style.SUCCESS('Учётные данные для входа:'))
+        self.stdout.write(self.style.SUCCESS('='*60))
+        self.stdout.write(self.style.SUCCESS('Директор:'))
+        self.stdout.write(self.style.SUCCESS('  Логин: director'))
+        self.stdout.write(self.style.SUCCESS('  Пароль: director123'))
+        self.stdout.write(self.style.SUCCESS('\nСотрудник:'))
+        self.stdout.write(self.style.SUCCESS('  Логин: employee'))
+        self.stdout.write(self.style.SUCCESS('  Пароль: employee123'))
+        self.stdout.write(self.style.SUCCESS('='*60))
+

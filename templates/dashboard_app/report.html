@@ -1,0 +1,230 @@
+{% load humanize %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Отчёт по компаниям</title>
+    <style>
+        body {
+            font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            margin: 40px auto;
+            max-width: 1100px;
+            color: #0f172a;
+            line-height: 1.6;
+        }
+        h1, h2 {
+            margin-bottom: 8px;
+        }
+        .meta {
+            color: #6b7280;
+            margin-bottom: 32px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+        .card {
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 16px;
+        }
+        .card span {
+            display: block;
+            text-transform: uppercase;
+            letter-spacing: .1em;
+            font-size: 0.75rem;
+            color: #94a3b8;
+        }
+        .card strong {
+            font-size: 1.4rem;
+        }
+        .company {
+            border: 1px solid #e2e8f0;
+            border-radius: 18px;
+            padding: 20px;
+            margin-bottom: 18px;
+        }
+        .company h3 {
+            margin: 0 0 6px;
+        }
+        .company table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+        }
+        .company td {
+            padding: 6px 0;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .company td:first-child {
+            width: 32%;
+            color: #64748b;
+            font-size: 0.95rem;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+        }
+        .note {
+            margin-top: 24px;
+            font-size: 0.85rem;
+            color: #94a3b8;
+        }
+        @media print {
+            body { margin: 0; }
+            .note { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <h1>Отчёт по выбранным компаниям</h1>
+    <p class="meta">Всего организаций: {{ count }} · Дата формирования: {% now "d.m.Y H:i" %}</p>
+
+    <div class="grid">
+        <div class="card">
+            <span>Суммарная выручка</span>
+            <strong>
+                {% if stats.total_revenue %}
+                    {{ stats.total_revenue|intcomma }} ₽
+                {% else %}
+                    —
+                {% endif %}
+            </strong>
+        </div>
+        <div class="card">
+            <span>Суммарные налоги</span>
+            <strong>
+                {% if stats.total_taxes %}
+                    {{ stats.total_taxes|intcomma }} ₽
+                {% else %}
+                    —
+                {% endif %}
+            </strong>
+        </div>
+        <div class="card">
+            <span>Средняя численность</span>
+            <strong>
+                {% if stats.avg_staff %}
+                    {{ stats.avg_staff|floatformat:1 }}
+                {% else %}
+                    —
+                {% endif %}
+            </strong>
+        </div>
+        <div class="card">
+            <span>Доля на УСН</span>
+            <strong>
+                {% if stats.usn_share %}
+                    {{ stats.usn_share|floatformat:1 }}%
+                {% else %}
+                    —
+                {% endif %}
+            </strong>
+        </div>
+    </div>
+
+    {% for company in companies %}
+    <article class="company">
+        <header>
+            <h3>{{ company.short_name|default:company.full_name }}</h3>
+            <p>{{ company.full_name }}</p>
+        </header>
+        <table>
+            <tr>
+                <td>ИНН</td>
+                <td>{{ company.inn }}</td>
+            </tr>
+            <tr>
+                <td>ОКВЭД</td>
+                <td>{{ company.okved|default:"—" }}</td>
+            </tr>
+            <tr>
+                <td>Выручка</td>
+                <td>
+                    {% if company.revenue %}
+                        {{ company.revenue|intcomma }} ₽
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+            </tr>
+            <tr>
+                <td>Расходы</td>
+                <td>
+                    {% if company.expenses %}
+                        {{ company.expenses|intcomma }} ₽
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+            </tr>
+            <tr>
+                <td>Уплаченные налоги</td>
+                <td>
+                    {% if company.taxes %}
+                        {{ company.taxes|intcomma }} ₽
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+            </tr>
+            <tr>
+                <td>Год налогов</td>
+                <td>{{ company.tax_year|default:"—" }}</td>
+            </tr>
+            <tr>
+                <td>Средн. численность</td>
+                <td>{{ company.staff|default:"—" }}</td>
+            </tr>
+            <tr>
+                <td>Год численности</td>
+                <td>{{ company.staff_year|default:"—" }}</td>
+            </tr>
+            <tr>
+                <td>УСН</td>
+                <td>
+                    {% if company.uses_usn is True %}
+                        Да
+                    {% elif company.uses_usn is False %}
+                        Нет
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+            </tr>
+            <tr>
+                <td>Руководитель</td>
+                <td>{{ company.ceo|default:"—" }}</td>
+            </tr>
+            <tr>
+                <td>Дата постановки на учёт</td>
+                <td>{{ company.registered_at|default:"—" }}</td>
+            </tr>
+            <tr>
+                <td>Дата в реестре МСП</td>
+                <td>{{ company.msme_at|default:"—" }}</td>
+            </tr>
+            <tr>
+                <td>Финансовый результат</td>
+                <td>
+                    {% if company.financial_result %}
+                        {{ company.financial_result|intcomma }} ₽
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+            </tr>
+        </table>
+    </article>
+    {% empty %}
+    <p>Не удалось построить отчёт: данные не найдены.</p>
+    {% endfor %}
+
+    <p class="note">Совет: используйте печать в PDF (Ctrl + P), чтобы сохранить отчёт и поделиться им.</p>
+</body>
+</html>
+
+
+
+
+

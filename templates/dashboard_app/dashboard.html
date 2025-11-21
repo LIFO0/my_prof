@@ -1,0 +1,377 @@
+{% load static %}
+{% load humanize %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Дашборд IT-компаний Калининградской области</title>
+    <link rel="stylesheet" href="{% static 'dashboard_app/styles.css' %}">
+    <script defer src="{% static 'dashboard_app/dashboard.js' %}"></script>
+</head>
+<body>
+    {% if messages %}
+    <div class="messages">
+        {% for message in messages %}
+        <div class="message message-{{ message.tags|default:'info' }}">{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    <header class="hero">
+        <div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <p class="eyebrow">Метрика</p>
+                
+                <div style="display: flex; align-items: center; gap: 16px;">
+                    <span style="color: var(--muted); font-size: 14px;">
+                        {{ user.get_full_name|default:user.username }} 
+                        <strong>({{ is_director|yesno:"Директор,Сотрудник" }})</strong>
+                    </span>
+                    <a href="{% url 'logout' %}" style="padding: 8px 16px; background: var(--border); border-radius: 6px; text-decoration: none; font-size: 14px; color: var(--text);">Выйти</a>
+                </div>
+            </div>
+            <h1>Дашборд компаний цифровой отрасли</h1>
+            <p class="lead">Анализируйте 120+ организаций: выручку, налоги, численность и статус МСП. Настраивайте фильтры, чтобы мгновенно получить нужную выборку.</p>
+        </div>
+        <div class="hero-badges">
+            <div class="badge">
+                <span class="badge-label">Компаний в базе</span>
+                <span class="badge-value">{{ dataset_stats.count|default:0|intcomma }}</span>
+            </div>
+            <div class="badge">
+                <span class="badge-label">Год данных (макс)</span>
+                <span class="badge-value">{{ filter_options.tax_years|first|default:"—" }}</span>
+            </div>
+        </div>
+    </header>
+
+    <section class="stats-grid" aria-label="Глобальная статистика">
+        <article class="stat-card">
+            <p class="stat-label">Совокупная выручка</p>
+            <p class="stat-value">
+                {% if dataset_stats.total_revenue %}
+                    {{ dataset_stats.total_revenue|intcomma }} ₽
+                {% else %}
+                    —
+                {% endif %}
+            </p>
+            <p class="stat-hint">По всей базе</p>
+        </article>
+        <article class="stat-card">
+            <p class="stat-label">Совокупные налоги</p>
+            <p class="stat-value">
+                {% if dataset_stats.total_taxes %}
+                    {{ dataset_stats.total_taxes|intcomma }} ₽
+                {% else %}
+                    —
+                {% endif %}
+            </p>
+            <p class="stat-hint">С учётом всех компаний</p>
+        </article>
+        <article class="stat-card">
+            <p class="stat-label">Средняя численность штата</p>
+            <p class="stat-value">
+                {% if dataset_stats.avg_staff %}
+                    {{ dataset_stats.avg_staff|floatformat:1 }}
+                {% else %}
+                    —
+                {% endif %}
+            </p>
+            <p class="stat-hint">Среднее по базе</p>
+        </article>
+        <article class="stat-card stat-card--highlight">
+            <p class="stat-label">ТОП по выручке</p>
+            {% if dataset_stats.top_company %}
+                <p class="stat-value">{{ dataset_stats.top_company.short_name|default:dataset_stats.top_company.full_name }}</p>
+                <p class="stat-hint">
+                    {{ dataset_stats.top_company.revenue|intcomma }} ₽ · {{ dataset_stats.top_company.okved }}
+                </p>
+            {% else %}
+                <p class="stat-value">Нет данных</p>
+            {% endif %}
+        </article>
+    </section>
+
+    <section class="dashboard-layout">
+        <aside class="filters-panel">
+            <div class="panel-header">
+                <h2>Фильтры</h2>
+                <p>Комбинируйте параметры и получайте точную выборку данных.</p>
+            </div>
+            <form id="filters-form" method="get">
+                <label class="form-control">
+                    <span>Поиск по названию или ФИО</span>
+                    <input type="search" name="search" value="{{ filters.search|default_if_none:'' }}" placeholder="Например: БИТРИКС">
+                </label>
+
+                <label class="form-control">
+                    <span>Основной ОКВЭД</span>
+                    <select name="okved">
+                        <option value="">Все направления</option>
+                        {% for okved in filter_options.okveds %}
+                        <option value="{{ okved }}" {% if filters.okved == okved %}selected{% endif %}>
+                            {{ okved }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </label>
+
+                <label class="form-control">
+                    <span>Применяет УСН</span>
+                    <select name="uses_usn">
+                        <option value="">Не важно</option>
+                        <option value="yes" {% if filters.uses_usn is True %}selected{% endif %}>Да</option>
+                        <option value="no" {% if filters.uses_usn is False %}selected{% endif %}>Нет</option>
+                    </select>
+                </label>
+
+                <label class="form-control">
+                    <span>Аккредитация</span>
+                    <select name="is_accredited">
+                        <option value="">Не важно</option>
+                        <option value="yes" {% if filters.is_accredited is True %}selected{% endif %}>Аккредитована</option>
+                        <option value="no" {% if filters.is_accredited is False %}selected{% endif %}>Не аккредитована</option>
+                    </select>
+                </label>
+
+                <div class="form-grid">
+                    <label class="form-control">
+                        <span>Мин. выручка (₽)</span>
+                        <input type="number" name="min_revenue" min="{{ bounds.revenue.0 }}" max="{{ bounds.revenue.1 }}" step="100000" value="{{ filters.min_revenue|default_if_none:'' }}" placeholder="{{ bounds.revenue.0|default:0 }}">
+                    </label>
+                    <label class="form-control">
+                        <span>Макс. выручка (₽)</span>
+                        <input type="number" name="max_revenue" min="{{ bounds.revenue.0 }}" max="{{ bounds.revenue.1 }}" step="100000" value="{{ filters.max_revenue|default_if_none:'' }}" placeholder="{{ bounds.revenue.1|default:0 }}">
+                    </label>
+                </div>
+
+                <label class="form-control">
+                    <span>Мин. налоги (₽)</span>
+                    <input type="number" name="min_taxes" min="{{ bounds.taxes.0 }}" max="{{ bounds.taxes.1 }}" step="50000" value="{{ filters.min_taxes|default_if_none:'' }}">
+                </label>
+
+                <label class="form-control">
+                    <span>Мин. численность сотрудников</span>
+                    <input type="number" name="min_staff" min="{{ bounds.staff.0 }}" max="{{ bounds.staff.1 }}" value="{{ filters.min_staff|default_if_none:'' }}">
+                </label>
+
+                <div class="form-grid">
+                    <label class="form-control">
+                        <span>Год уплаты налогов</span>
+                        <select name="tax_year">
+                            <option value="">Любой</option>
+                            {% for year in filter_options.tax_years %}
+                            <option value="{{ year }}" {% if filters.tax_year == year %}selected{% endif %}>{{ year }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label class="form-control">
+                        <span>Год численности</span>
+                        <select name="staff_year">
+                            <option value="">Любой</option>
+                            {% for year in filter_options.staff_years %}
+                            <option value="{{ year }}" {% if filters.staff_year == year %}selected{% endif %}>{{ year }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                </div>
+
+                <div class="panel-actions">
+                    <button type="submit" class="btn btn-primary">Применить фильтры</button>
+                    <a class="btn btn-ghost" href="{% url 'dashboard' %}">Сбросить</a>
+                </div>
+            </form>
+            <div class="quick-filters">
+                <p class="quick-title">Быстрые сценарии</p>
+                <button type="button" data-filter-preset="top-revenue">Лидеры по выручке</button>
+                <button type="button" data-filter-preset="hi-staff">100+ сотрудников</button>
+                <button type="button" data-filter-preset="usn-only">Только УСН</button>
+            </div>
+        </aside>
+
+        <section class="table-area">
+            <div class="selection-header">
+                <div>
+                    <h2>Текущая выборка</h2>
+                    <p>{{ selection_stats.count|default:0 }} компаний соответствует условиям</p>
+                </div>
+                <div class="chips" id="active-filters">
+                    {% if active_filters %}
+                        {% for item in active_filters %}
+                            <span class="chip">{{ item }}</span>
+                        {% endfor %}
+                    {% else %}
+                        <span class="chip chip-muted">Фильтры не заданы</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            
+
+            <form id="report-form" method="post" action="{% url 'report' %}">
+                {% csrf_token %}
+                <div class="table-toolbar">
+                    <input type="search" id="live-search" placeholder="Живой поиск по текущей выборке">
+                    <p class="hint">Клик по заголовку — сортировка · Esc — очистить поиск</p>
+                </div>
+                <div class="selection-actions">
+                    <span id="selected-count">0 компаний выбрано</span>
+                    {% if is_director %}
+                    <div class="selection-buttons">
+                        <button type="button" id="accreditation-button" class="btn btn-ghost" data-action="{% url 'accreditation_sync' %}" disabled>Обновить аккредитацию</button>
+                        <button type="submit" id="report-button" class="btn btn-primary" disabled>Сформировать отчёт</button>
+                    </div>
+                    {% else %}
+                    <div class="selection-buttons">
+                        <span style="color: var(--muted); font-size: 14px;">Доступно только для директора</span>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="table-wrapper">
+                    <table id="companies-table">
+                        <thead>
+                            <tr>
+                                <th class="col-select">
+                                    <input type="checkbox" id="select-all">
+                                </th>
+                                <th data-sort="text">Компания</th>
+                                <th data-sort="text">ОКВЭД</th>
+                                <th data-sort="number">Выручка</th>
+                                <th data-sort="number">Налоги</th>
+                                <th data-sort="number">Численность</th>
+                                <th data-sort="text">Аккредитация</th>
+                                <th data-sort="text">УСН</th>
+                                <th>Подробнее</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for company in companies %}
+                            <tr>
+                                <td class="col-select">
+                                    <input type="checkbox" class="row-checkbox" name="company_inn" value="{{ company.inn }}" aria-label="Выбрать {{ company.short_name|default:company.full_name }}">
+                                </td>
+                                <td>
+                                    <div class="company-name">
+                                        <strong>{{ company.short_name|default:company.full_name }}</strong>
+                                        <span>{{ company.full_name }}</span>
+                                        <small>ИНН: {{ company.inn }}</small>
+                                    </div>
+                                </td>
+                                <td>{{ company.okved|default:"—" }}</td>
+                                <td data-value="{{ company.revenue|default_if_none:0 }}">
+                                    {% if company.revenue %}
+                                        {{ company.revenue|intcomma }} ₽
+                                    {% else %}
+                                        —
+                                    {% endif %}
+                                </td>
+                                <td data-value="{{ company.taxes|default_if_none:0 }}">
+                                    {% if company.taxes %}
+                                        {{ company.taxes|intcomma }} ₽
+                                    {% else %}
+                                        —
+                                    {% endif %}
+                                </td>
+                                <td data-value="{{ company.staff|default_if_none:0 }}">
+                                    {% if company.staff %}
+                                        {{ company.staff }}
+                                    {% else %}
+                                        —
+                                    {% endif %}
+                                </td>
+                            <td class="accreditation-cell">
+                                {% if company.accreditation %}
+                                    {% with company.accreditation.status|default_if_none:""|lower as accreditation_status %}
+                                        {% if "действ" in accreditation_status %}
+                                            <span class="pill pill-success">{{ company.accreditation.status }}</span>
+                                        {% else %}
+                                            <span class="pill pill-danger">{{ company.accreditation.status }}</span>
+                                        {% endif %}
+                                    {% endwith %}
+                                    <small>Обновлено: {{ company.accreditation.checked_at|date:"d.m.Y H:i" }}</small>
+                                {% else %}
+                                    <span class="pill">—</span>
+                                {% endif %}
+                            </td>
+                                <td>
+                                    {% if company.uses_usn is True %}
+                                        <span class="pill pill-success">Да</span>
+                                    {% elif company.uses_usn is False %}
+                                        <span class="pill pill-danger">Нет</span>
+                                    {% else %}
+                                        <span class="pill">—</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <details>
+                                        <summary>Показать</summary>
+                                        <ul>
+                                            <li>Дата постановки: {{ company.registered_at|default:"—" }}</li>
+                                            <li>Руководитель: {{ company.ceo|default:"—" }}</li>
+                                            <li>Год налогов: {{ company.tax_year|default:"—" }}</li>
+                                            <li>Год численности: {{ company.staff_year|default:"—" }}</li>
+                                            <li>Дата МСП: {{ company.msme_at|default:"—" }}</li>
+                                        {% if company.accreditation %}
+                                        <li>Статус аккредитации: {{ company.accreditation.status }}</li>
+                                        <li>Номер решения: {{ company.accreditation.decision_number|default:"—" }}</li>
+                                        <li>Дата решения: {{ company.accreditation.decision_date|date:"d.m.Y"|default:"—" }}</li>
+                                        {% endif %}
+                                            <li>Финансовый результат:
+                                                {% if company.financial_result %}
+                                                    {{ company.financial_result|intcomma }} ₽
+                                                {% else %}
+                                                    —
+                                                {% endif %}
+                                            </li>
+                                        </ul>
+                                    </details>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                            <td colspan="9" class="empty-state">
+                                    <p>По заданным условиям ничего не найдено. Попробуйте смягчить фильтры.</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                {% if page_obj.has_other_pages %}
+                <div class="pagination">
+                    {% if page_obj.has_previous %}
+                        <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page=1" class="pagination-btn" title="Первая страница">«</a>
+                        <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}" class="pagination-btn" title="Предыдущая страница">‹</a>
+                    {% else %}
+                        <span class="pagination-btn disabled">«</span>
+                        <span class="pagination-btn disabled">‹</span>
+                    {% endif %}
+                    
+                    {% for num in page_obj.paginator.page_range %}
+                        {% if page_obj.number == num %}
+                            <span class="pagination-btn active">{{ num }}</span>
+                        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                            <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ num }}" class="pagination-btn">{{ num }}</a>
+                        {% elif num == 1 or num == page_obj.paginator.num_pages %}
+                            <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ num }}" class="pagination-btn">{{ num }}</a>
+                        {% elif num == page_obj.number|add:'-4' or num == page_obj.number|add:'4' %}
+                            <span class="pagination-ellipsis">...</span>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if page_obj.has_next %}
+                        <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}" class="pagination-btn" title="Следующая страница">›</a>
+                        <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.paginator.num_pages }}" class="pagination-btn" title="Последняя страница">»</a>
+                    {% else %}
+                        <span class="pagination-btn disabled">›</span>
+                        <span class="pagination-btn disabled">»</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </form>
+        </section>
+    </section>
+</body>
+</html>
+
