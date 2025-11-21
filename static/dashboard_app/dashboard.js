@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initNotifications();
   initPagination();
   initCompanyTooltip();
+  initMessages();
 });
 
 function initSearchSync() {
@@ -276,18 +277,7 @@ function initSelectionControls() {
       hidden.value = input.value;
       hiddenInputsContainer.appendChild(hidden);
     });
-    const names = selected.slice(0, 3).map((input) => {
-      const row = input.closest('tr');
-      const nameElement = row ? row.querySelector('.company-name strong') : null;
-      const nameText = nameElement ? nameElement.textContent.trim() : '';
-      return nameText || input.value;
-    });
-    let preview = 'Компании не выбраны.';
-    if (names.length) {
-      const rest = selected.length - names.length;
-      preview = `${names.join(', ')}${rest > 0 ? ` и ещё ${rest}` : ''}`;
-    }
-    sendSummary.textContent = `Компаний в отчёте: ${selected.length}. ${preview}`;
+    sendSummary.textContent = `Количество компаний в отчёте: ${selected.length}`;
     sendModal.classList.add('is-open');
     sendModal.setAttribute('aria-hidden', 'false');
   };
@@ -527,6 +517,11 @@ function initCompanyTooltip() {
   let tooltip = null;
   let hideTimeout = null;
 
+  if (!companyNames.length) {
+    console.warn('No company names with data-company-info found');
+    return;
+  }
+
   function createTooltip(data) {
     if (tooltip) {
       tooltip.remove();
@@ -535,7 +530,13 @@ function initCompanyTooltip() {
     tooltip = document.createElement('div');
     tooltip.className = 'company-tooltip';
     
-    const info = JSON.parse(data);
+    let info;
+    try {
+      info = JSON.parse(data);
+    } catch (e) {
+      console.error('Error parsing company info:', e, data);
+      return null;
+    }
     tooltip.innerHTML = `
       <div class="tooltip-header">
         <h5>${info.full_name || '—'}</h5>
@@ -599,7 +600,19 @@ function initCompanyTooltip() {
     tooltip.style.left = `${left}px`;
   }
 
-  companyNames.forEach(name => {
+  companyNames.forEach((name, index) => {
+    // Проверяем, что элемент имеет атрибут
+    const hasData = name.hasAttribute('data-company-info');
+    if (!hasData) {
+      console.warn(`Company name ${index} missing data-company-info attribute`);
+      return;
+    }
+
+    // Добавляем курсор pointer для визуального указания
+    if (!name.style.cursor) {
+      name.style.cursor = 'pointer';
+    }
+
     name.addEventListener('mouseenter', (e) => {
       if (hideTimeout) {
         clearTimeout(hideTimeout);
@@ -607,14 +620,23 @@ function initCompanyTooltip() {
       }
 
       const data = e.target.getAttribute('data-company-info');
-      if (!data) return;
+      if (!data) {
+        console.warn('No data-company-info attribute found on hover');
+        return;
+      }
 
       const tooltipElement = createTooltip(data);
+      if (!tooltipElement) {
+        console.warn('Failed to create tooltip');
+        return;
+      }
       
       // Небольшая задержка перед показом для плавности
       setTimeout(() => {
-        tooltipElement.classList.add('tooltip-visible');
-        positionTooltip(e.target, tooltipElement);
+        if (tooltipElement && tooltipElement.parentNode) {
+          tooltipElement.classList.add('tooltip-visible');
+          positionTooltip(e.target, tooltipElement);
+        }
       }, 100);
     });
 
@@ -638,6 +660,47 @@ function initCompanyTooltip() {
       if (tooltip && tooltip.classList.contains('tooltip-visible')) {
         positionTooltip(e.target, tooltip);
       }
+    });
+  });
+}
+
+function initMessages() {
+  const messages = document.querySelectorAll('.message');
+  
+  messages.forEach(message => {
+    const closeBtn = message.querySelector('.message-close');
+    let timeoutId = null;
+
+    function hideMessage() {
+      message.classList.add('message-hidden');
+      setTimeout(() => {
+        message.remove();
+      }, 250);
+    }
+
+    // Автоматическое скрытие через 10 секунд
+    timeoutId = setTimeout(hideMessage, 10000);
+
+    // Закрытие по клику на крестик
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        hideMessage();
+      });
+    }
+
+    // Остановка таймера при наведении
+    message.addEventListener('mouseenter', () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    });
+
+    // Возобновление таймера при уходе мыши
+    message.addEventListener('mouseleave', () => {
+      timeoutId = setTimeout(hideMessage, 10000);
     });
   });
 }
