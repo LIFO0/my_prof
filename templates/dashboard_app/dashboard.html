@@ -279,19 +279,21 @@
                                         —
                                     {% endif %}
                                 </td>
-                            <td class="accreditation-cell">
-                                {% if company.accreditation %}
-                                    {% with company.accreditation.status|default_if_none:""|lower as accreditation_status %}
-                                        {% if "действ" in accreditation_status %}
-                                            <span class="pill pill-success">{{ company.accreditation.status }}</span>
-                                        {% else %}
-                                            <span class="pill pill-danger">{{ company.accreditation.status }}</span>
-                                        {% endif %}
-                                    {% endwith %}
-                                    <small>Обновлено: {{ company.accreditation.checked_at|date:"d.m.Y H:i" }}</small>
-                                {% else %}
-                                    <span class="pill">—</span>
-                                {% endif %}
+                            <td>
+                                <div class="accreditation-cell">
+                                    {% if company.accreditation %}
+                                        {% with company.accreditation.status|default_if_none:""|lower as accreditation_status %}
+                                            {% if "действ" in accreditation_status %}
+                                                <span class="pill pill-success">{{ company.accreditation.status }}</span>
+                                            {% else %}
+                                                <span class="pill pill-danger">{{ company.accreditation.status }}</span>
+                                            {% endif %}
+                                        {% endwith %}
+                                        <small>Обновлено: {{ company.accreditation.checked_at|date:"d.m.Y H:i" }}</small>
+                                    {% else %}
+                                        <span class="pill">—</span>
+                                    {% endif %}
+                                </div>
                             </td>
                                 <td>
                                     {% if company.uses_usn is True %}

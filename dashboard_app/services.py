@@ -18,7 +18,7 @@ from django.utils import timezone
 from .models import AccreditationStatus
 
 
-DATA_FILE = settings.BASE_DIR / 'dop_material.csv'
+DATA_FILE = settings.BASE_DIR / 'data' / 'dop_material.csv'
 logger = logging.getLogger(__name__)
 
 

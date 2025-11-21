@@ -91,33 +91,24 @@ python manage.py runserver
 
 ```
 my_prof/
-├── dashboard_app/          # Основное приложение
-│   ├── models.py          # Модели данных (UserProfile, AccreditationStatus)
-│   ├── views.py           # Обработчики запросов
-│   ├── services.py        # Бизнес-логика (загрузка данных, фильтрация, API)
-│   ├── decorators.py      # Декораторы для проверки прав доступа
-│   ├── admin.py           # Настройки админ-панели
-│   ├── migrations/        # Миграции базы данных
-│   └── management/        # Кастомные команды
-│       └── commands/
-│           └── create_users.py
-├── dashboard_site/        # Настройки проекта Django
-│   ├── settings.py        # Конфигурация приложения
-│   ├── urls.py            # Маршрутизация URL
-│   └── wsgi.py            # WSGI конфигурация
-├── templates/             # HTML шаблоны
+├── dashboard_app/            # Основное приложение
+│   ├── migrations/           # Миграции базы данных
+│   ├── management/           # Кастомные команды (create_users)
+│   ├── services.py           # Бизнес-логика и работа с данными
+│   └── ...                   # Остальные файлы приложения
+├── dashboard_site/           # Настройки проекта Django
+│   ├── settings.py           # Конфигурация приложения
+│   └── urls.py               # Маршрутизация URL
+├── data/
+│   └── dop_material.csv      # Исходные данные о компаниях
+├── static/                   # Статические файлы (CSS + JS)
 │   └── dashboard_app/
-│       ├── dashboard.html # Главная страница
-│       ├── login.html     # Страница входа
-│       └── report.html    # Страница отчета
-├── static/                # Статические файлы
+├── templates/                # HTML шаблоны
 │   └── dashboard_app/
-│       ├── styles.css     # Стили
-│       └── dashboard.js   # JavaScript логика
-├── dop_material.csv       # Исходные данные о компаниях
-├── manage.py              # Точка входа Django
-├── requirements.txt       # Зависимости проекта
-└── README.md              # Этот файл
+├── manage.py                 # Точка входа Django
+├── requirements.txt          # Зависимости проекта
+├── run_dashboard.bat         # Быстрый запуск на Windows
+└── README.md                 # Этот файл
 ```
 
 ## 🔐 Система ролей
@@ -183,8 +174,8 @@ python manage.py collectstatic
 
 ## 🔄 Обновление данных
 
-Данные о компаниях загружаются из файла `dop_material.csv`. Для обновления данных:
-1. Замените файл `dop_material.csv` новыми данными
+Данные о компаниях загружаются из файла `data/dop_material.csv`. Для обновления данных:
+1. Замените файл `data/dop_material.csv` новыми данными
 2. Перезапустите сервер (данные кэшируются в памяти)
 
 ## 🐛 Решение проблем

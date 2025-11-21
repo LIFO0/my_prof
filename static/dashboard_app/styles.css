@@ -149,7 +149,7 @@
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 24px;
-    padding: 48px 80px;
+    padding: 48px 40px;
     background: white;
   }
   
@@ -603,7 +603,7 @@
   }
   
   td {
-    padding: 16px 12px;
+    padding: 8px 6px;
     border-bottom: 1px solid var(--border);
     vertical-align: middle;
   }
@@ -638,11 +638,12 @@
     color: var(--muted);
   }
   
-  .accreditation-cell {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
+.accreditation-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
   
   .accreditation-cell small {
     font-size: 11px;
@@ -685,6 +686,7 @@
     transition: background 0.2s;
     list-style: none;
     user-select: none;
+    text-align: center;
   }
   
   summary:hover {
