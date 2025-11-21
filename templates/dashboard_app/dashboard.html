@@ -1,5 +1,6 @@
 {% load static %}
 {% load humanize %}
+{% load tz %}
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -206,10 +207,12 @@
             <section class="data-section">
                 <form id="report-form" method="post" action="{% url 'report' %}">
                     {% csrf_token %}
+                    <div id="all-companies-data" data-all-inns="{{ all_filtered_inns|join:',' }}" style="display: none;"></div>
                     <div class="data-header">
                         <div class="selected-count">
                             <input type="checkbox" class="checkbox-main" id="select-all">
                             <span id="selected-count">0 компаний выбрано</span>
+                            <button type="button" class="btn-select-all" id="select-all-button">Выбрать всё</button>
                         </div>
                         <div class="data-header-buttons">
                             {% if is_director %}
@@ -306,7 +309,7 @@
                                                         <span class="status-badge status-badge-danger">{{ company.accreditation.status }}</span>
                                                     {% endif %}
                                                 {% endwith %}
-                                                <p class="update-time">Обновлено:<br>{{ company.accreditation.checked_at|date:"d.m.Y H:i" }}</p>
+                                                <p class="update-time">Обновлено:<br>{{ company.accreditation.checked_at|localtime|date:"d.m.Y H:i" }}</p>
                                             {% else %}
                                                 <span class="status-badge status-badge-muted">—</span>
                                             {% endif %}

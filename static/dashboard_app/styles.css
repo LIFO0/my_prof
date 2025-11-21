@@ -514,6 +514,28 @@ body {
   border-radius: 16px;
 }
 
+.btn-select-all {
+  margin-left: 12px;
+  padding: 6px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #10472b;
+  background: transparent;
+  border: 1px solid #10472b;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-select-all:hover {
+  background: #10472b;
+  color: #fff;
+}
+
+.btn-select-all:active {
+  transform: scale(0.98);
+}
+
 .selected-count {
   font-family: "Inter", sans-serif;
   font-size: 16px;

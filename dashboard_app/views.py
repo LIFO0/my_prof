@@ -253,6 +253,9 @@ def dashboard_view(request):
         is_read=False
     ).count()
 
+    # Список всех ИНН отфильтрованных компаний (для функции "Выбрать всё")
+    all_filtered_inns = [row.get('inn') for row in filtered_rows if row.get('inn')]
+    
     context = {
         'filters': filters,
         'active_filters': _describe_active_filters(filters),
@@ -268,6 +271,7 @@ def dashboard_view(request):
         'report_recipients': report_recipients,
         'notifications_payload': notifications_payload,
         'unread_emails_count': unread_emails_count,
+        'all_filtered_inns': all_filtered_inns,  # Все ИНН отфильтрованных компаний
     }
     return render(request, 'dashboard_app/dashboard.html', context)
 
