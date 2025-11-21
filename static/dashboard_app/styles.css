@@ -34,6 +34,13 @@ body {
   align-items: center;
   gap: 12px;
   flex-shrink: 0;
+  text-decoration: none;
+  color: inherit;
+  transition: opacity 0.2s ease;
+}
+
+.top-header-brand:hover {
+  opacity: 0.8;
 }
 
 .brand-logo {

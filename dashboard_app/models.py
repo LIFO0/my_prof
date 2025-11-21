@@ -25,6 +25,12 @@ class UserProfile(models.Model):
         choices=ROLE_CHOICES,
         default=ROLE_EMPLOYEE,
     )
+    internal_email = models.CharField(
+        'Внутренний email',
+        max_length=255,
+        blank=True,
+        help_text='Виртуальный email адрес для внутренней почты (например, admin@metrika.com)',
+    )
     created_at = models.DateTimeField('Создан', auto_now_add=True)
     updated_at = models.DateTimeField('Обновлён', auto_now=True)
 
@@ -42,6 +48,25 @@ class UserProfile(models.Model):
     @property
     def is_employee(self):
         return self.role == self.ROLE_EMPLOYEE
+
+    def get_internal_email(self):
+        """Возвращает внутренний email адрес пользователя."""
+        if self.internal_email:
+            return self.internal_email
+        # Генерируем автоматически, если не задан
+        username = self.user.username
+        if self.is_director:
+            return f'admin@metrika.com'
+        return f'{username}@metrika.com'
+
+    def save(self, *args, **kwargs):
+        # Автоматически устанавливаем internal_email при создании, если не задан
+        if not self.internal_email:
+            if self.is_director:
+                self.internal_email = 'admin@metrika.com'
+            else:
+                self.internal_email = f'{self.user.username}@metrika.com'
+        super().save(*args, **kwargs)
 
 
 class AccreditationStatus(models.Model):
@@ -77,6 +102,7 @@ class Notification(models.Model):
     class Type(models.TextChoices):
         REPORT = 'report', 'Отчёт'
         DATA = 'data', 'Обновление данных'
+        EMAIL = 'email', 'Письмо'
 
     recipient = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -98,6 +124,12 @@ class Notification(models.Model):
         choices=Type.choices,
     )
     title = models.CharField('Заголовок', max_length=180)
+    subject = models.CharField(
+        'Тема письма',
+        max_length=255,
+        blank=True,
+        help_text='Тема письма (для типа EMAIL)',
+    )
     message = models.TextField('Сообщение')
     payload = models.JSONField('Данные', default=dict, blank=True)
     is_read = models.BooleanField('Прочитано', default=False)

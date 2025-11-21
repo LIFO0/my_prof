@@ -22,6 +22,9 @@ from dashboard_app.views import (
     dashboard_view,
     login_view,
     logout_view,
+    mail_inbox_view,
+    mail_sent_view,
+    mail_view_view,
     notification_download_report_view,
     report_export_excel_view,
     report_view,
@@ -42,4 +45,7 @@ urlpatterns = [
         name='notification_download',
     ),
     path('accreditation/sync/', accreditation_sync_view, name='accreditation_sync'),
+    path('mail/', mail_inbox_view, name='mail_inbox'),
+    path('mail/sent/', mail_sent_view, name='mail_sent'),
+    path('mail/<int:pk>/', mail_view_view, name='mail_view'),
 ]

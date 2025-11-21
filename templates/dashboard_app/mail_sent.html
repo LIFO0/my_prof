@@ -1,0 +1,111 @@
+{% load static %}
+{% load humanize %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="{% static 'dashboard_app/img/logo.png' %}">
+    <title>Отправленные — Метрика</title>
+    <link rel="stylesheet" href="{% static 'dashboard_app/styles.css' %}">
+    <link rel="stylesheet" href="{% static 'dashboard_app/mail.css' %}">
+</head>
+<body>
+    {% if messages %}
+    <div class="messages">
+        {% for message in messages %}
+        <div class="message message-{{ message.tags|default:'info' }}">
+            <span class="message-text">{{ message }}</span>
+            <button class="message-close" aria-label="Закрыть">&times;</button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <header class="top-header">
+        <a href="{% url 'dashboard' %}" class="top-header-brand">
+            <img src="{% static 'dashboard_app/img/logo.png' %}" alt="Логотип Метрика" class="brand-logo">
+            <div class="brand-text">
+                <span class="brand-name">Метрика</span>
+                <span class="brand-tagline">аналитическая платформа</span>
+            </div>
+        </a>
+        <div class="top-header-account">
+            <a href="{% url 'dashboard' %}" class="mail-back-to-dashboard">← Главная</a>
+            <a href="{% url 'mail_inbox' %}" class="mail-link">
+                📧 Почта
+                {% if unread_emails_count|default:0 > 0 %}
+                <span class="mail-link-badge">{{ unread_emails_count }}</span>
+                {% endif %}
+            </a>
+            <img src="{% static 'dashboard_app/img/account.png' %}" alt="Учетная запись" class="account-avatar">
+            <div class="account-details">
+                <span class="account-name">{{ user.get_full_name|default:user.username }}</span>
+                <span class="mail-account-email">{{ user_email }}</span>
+            </div>
+            <a class="logout-button" href="{% url 'logout' %}">Выход</a>
+        </div>
+    </header>
+
+    <div class="mail-container">
+        <div class="mail-header">
+            <h1 class="mail-title">Отправленные</h1>
+            <div class="mail-header-actions">
+                <a href="{% url 'mail_inbox' %}" class="mail-link active">Входящие</a>
+                <span class="mail-stats">Всего: {{ page_obj.paginator.count }}</span>
+            </div>
+        </div>
+
+        {% if page_obj %}
+        <div class="mail-list">
+            {% for email in page_obj %}
+            <a href="{% url 'mail_view' email.id %}" class="mail-item">
+                <div class="mail-item-content">
+                    <div class="mail-item-main">
+                        <div class="mail-item-header">
+                            <span class="mail-sender-name">{{ email.recipient.get_full_name|default:email.recipient.username }}</span>
+                            <span class="mail-sender-email">{{ email.payload.recipient_email|default:email.recipient.profile.get_internal_email }}</span>
+                            {% if email.is_read %}
+                            <span style="color: #10b981; font-size: 12px; font-weight: 600;">✓ Прочитано</span>
+                            {% else %}
+                            <span style="color: #9a9a9a; font-size: 12px;">○ Не прочитано</span>
+                            {% endif %}
+                        </div>
+                        <div class="mail-item-subject">{{ email.subject|default:email.title }}</div>
+                        <div class="mail-item-preview">{{ email.message|truncatewords:20 }}</div>
+                    </div>
+                    <div class="mail-item-date">{{ email.created_at|date:"d.m.Y H:i" }}</div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+
+        {% if page_obj.has_other_pages %}
+        <div class="mail-pagination">
+            {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}" class="mail-pagination-link">← Назад</a>
+            {% endif %}
+            <span class="mail-pagination-info">Страница {{ page_obj.number }} из {{ page_obj.paginator.num_pages }}</span>
+            {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}" class="mail-pagination-link">Вперёд →</a>
+            {% endif %}
+        </div>
+        {% endif %}
+        {% else %}
+        <div class="mail-empty">
+            <p class="mail-empty-title">Нет отправленных писем</p>
+            <p class="mail-empty-text">Отправленные письма будут отображаться здесь</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        // Закрытие сообщений
+        document.querySelectorAll('.message-close').forEach(btn => {
+            btn.addEventListener('click', function() {
+                this.closest('.message').remove();
+            });
+        });
+    </script>
+</body>
+</html>

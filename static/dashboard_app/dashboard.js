@@ -191,7 +191,8 @@ function initSelectionControls() {
       accreditationBtn.disabled = selected.length === 0;
     }
     if (sendBtn) {
-      sendBtn.disabled = selected.length === 0 || !hasRecipients;
+      // Кнопка отправки доступна, если есть выбранные компании
+      sendBtn.disabled = selected.length === 0;
     }
     if (selectAll) {
       selectAll.indeterminate =
@@ -283,11 +284,41 @@ function initSelectionControls() {
       hiddenInputsContainer.appendChild(hidden);
     });
     sendSummary.textContent = `Количество компаний в отчёте: ${selected.length}`;
+    
+    // Сброс формы и инициализация полей
+    const sendForm = document.getElementById('send-report-form');
+    const sendMethodSelect = document.getElementById('send-method-select');
+    const recipientSelectLabel = document.getElementById('recipient-select-label');
+    const recipientSelect = document.getElementById('recipient-select');
+    const emailSelectLabel = document.getElementById('email-select-label');
+    const emailSelect = document.getElementById('recipient-email-select');
+    
+    if (sendForm) {
+      sendForm.reset();
+    }
+    
+    // Устанавливаем способ отправки по умолчанию
+    if (sendMethodSelect) {
+      sendMethodSelect.value = 'user';
+    }
+    
+    // Показываем выбор пользователя, скрываем выбор email
+    if (recipientSelectLabel) recipientSelectLabel.style.display = 'block';
+    if (recipientSelect) {
+      recipientSelect.setAttribute('required', 'required');
+      recipientSelect.value = '';
+    }
+    if (emailSelectLabel) emailSelectLabel.style.display = 'none';
+    if (emailSelect) {
+      emailSelect.removeAttribute('required');
+      emailSelect.value = '';
+    }
+    
     sendModal.classList.add('is-open');
     sendModal.setAttribute('aria-hidden', 'false');
   };
 
-  if (sendBtn && hasRecipients) {
+  if (sendBtn) {
     sendBtn.addEventListener('click', () => {
       const selected = Array.from(checkboxes).filter((input) => input.checked);
       if (!selected.length) return;
@@ -308,6 +339,59 @@ function initSelectionControls() {
         closeSendModal();
       }
     });
+
+    // Переключение между выбором пользователя и выбором email
+    const sendMethodSelect = document.getElementById('send-method-select');
+    const recipientSelectLabel = document.getElementById('recipient-select-label');
+    const recipientSelect = document.getElementById('recipient-select');
+    const emailSelectLabel = document.getElementById('email-select-label');
+    const emailSelect = document.getElementById('recipient-email-select');
+
+    if (sendMethodSelect) {
+      sendMethodSelect.addEventListener('change', (e) => {
+        if (e.target.value === 'email') {
+          // Показываем выбор email, скрываем выбор пользователя
+          if (recipientSelectLabel) recipientSelectLabel.style.display = 'none';
+          if (recipientSelect) {
+            recipientSelect.removeAttribute('required');
+            recipientSelect.value = '';
+          }
+          if (emailSelectLabel) emailSelectLabel.style.display = 'block';
+          if (emailSelect) emailSelect.setAttribute('required', 'required');
+        } else {
+          // Показываем выбор пользователя, скрываем выбор email
+          if (recipientSelectLabel) recipientSelectLabel.style.display = 'block';
+          if (recipientSelect) recipientSelect.setAttribute('required', 'required');
+          if (emailSelectLabel) emailSelectLabel.style.display = 'none';
+          if (emailSelect) {
+            emailSelect.removeAttribute('required');
+            emailSelect.value = '';
+          }
+        }
+      });
+    }
+
+    // Валидация формы перед отправкой
+    if (sendForm) {
+      sendForm.addEventListener('submit', (e) => {
+        const sendMethod = sendMethodSelect?.value;
+        if (sendMethod === 'email') {
+          const email = emailSelect?.value?.trim();
+          if (!email) {
+            e.preventDefault();
+            alert('Пожалуйста, выберите email адрес получателя из списка.');
+            return false;
+          }
+        } else {
+          const recipientId = recipientSelect?.value;
+          if (!recipientId) {
+            e.preventDefault();
+            alert('Пожалуйста, выберите получателя из списка.');
+            return false;
+          }
+        }
+      });
+    }
   }
 
   // Добавляем обработчик для кнопки создания отчёта

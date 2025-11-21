@@ -1,0 +1,118 @@
+{% load static %}
+{% load humanize %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="{% static 'dashboard_app/img/logo.png' %}">
+    <title>Письмо — Метрика</title>
+    <link rel="stylesheet" href="{% static 'dashboard_app/styles.css' %}">
+    <link rel="stylesheet" href="{% static 'dashboard_app/mail.css' %}">
+</head>
+<body>
+    {% if messages %}
+    <div class="messages">
+        {% for message in messages %}
+        <div class="message message-{{ message.tags|default:'info' }}">
+            <span class="message-text">{{ message }}</span>
+            <button class="message-close" aria-label="Закрыть">&times;</button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <header class="top-header">
+        <a href="{% url 'dashboard' %}" class="top-header-brand">
+            <img src="{% static 'dashboard_app/img/logo.png' %}" alt="Логотип Метрика" class="brand-logo">
+            <div class="brand-text">
+                <span class="brand-name">Метрика</span>
+                <span class="brand-tagline">аналитическая платформа</span>
+            </div>
+        </a>
+        <div class="top-header-account">
+            <a href="{% url 'dashboard' %}" class="mail-back-to-dashboard">← Главная</a>
+            <a href="{% url 'mail_inbox' %}" class="mail-link">
+                📧 Почта
+                {% if unread_emails_count|default:0 > 0 %}
+                <span class="mail-link-badge">{{ unread_emails_count }}</span>
+                {% endif %}
+            </a>
+            <img src="{% static 'dashboard_app/img/account.png' %}" alt="Учетная запись" class="account-avatar">
+            <div class="account-details">
+                <span class="account-name">{{ user.get_full_name|default:user.username }}</span>
+            </div>
+            <a class="logout-button" href="{% url 'logout' %}">Выход</a>
+        </div>
+    </header>
+
+    <div class="mail-view-container">
+        <div class="mail-view-header">
+            <a href="{% if is_incoming %}{% url 'mail_inbox' %}{% else %}{% url 'mail_sent' %}{% endif %}" class="mail-view-back">← Назад</a>
+        </div>
+
+        <div class="mail-view-card">
+            <div class="mail-view-header-section">
+                <h1 class="mail-view-title">{{ email.subject|default:email.title }}</h1>
+                <div class="mail-view-meta">
+                    <div class="mail-view-meta-row">
+                        <span class="mail-view-meta-label">От:</span>
+                        <span>{{ email.sender.get_full_name|default:email.sender.username }} &lt;{{ sender_email }}&gt;</span>
+                    </div>
+                    <div class="mail-view-meta-row">
+                        <span class="mail-view-meta-label">Кому:</span>
+                        <span>{{ email.recipient.get_full_name|default:email.recipient.username }} &lt;{{ recipient_email }}&gt;</span>
+                    </div>
+                    <div class="mail-view-meta-row">
+                        <span class="mail-view-meta-label">Дата:</span>
+                        <span>{{ email.created_at|date:"d.m.Y H:i" }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mail-view-body">{{ email.message }}</div>
+
+            {% if email.payload.inns %}
+            <div class="mail-view-attachment">
+                <div class="mail-view-attachment-header">
+                    <span class="mail-view-attachment-label">Вложение:</span>
+                    <span class="mail-view-attachment-info">Excel-отчёт по {{ email.payload.count }} компаниям</span>
+                </div>
+                <form method="post" action="{% url 'notification_download' email.id %}" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="mail-view-attachment-btn">📎 Скачать Excel-отчёт</button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if companies %}
+        <div class="mail-view-companies">
+            <h2 class="mail-view-companies-title">Компании в отчёте ({{ companies|length }})</h2>
+            <div class="mail-view-companies-list">
+                {% for company in companies|slice:":10" %}
+                <div class="mail-view-company-item">
+                    <span class="mail-view-company-name">{{ company.short_name|default:company.full_name }}</span>
+                    <span class="mail-view-company-inn">ИНН: {{ company.inn }}</span>
+                </div>
+                {% endfor %}
+                {% if companies|length > 10 %}
+                <div class="mail-view-companies-more">
+                    ... и ещё {{ companies|length|add:"-10" }} компаний. Скачайте Excel-файл для просмотра полного списка.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        // Закрытие сообщений
+        document.querySelectorAll('.message-close').forEach(btn => {
+            btn.addEventListener('click', function() {
+                this.closest('.message').remove();
+            });
+        });
+    </script>
+</body>
+</html>

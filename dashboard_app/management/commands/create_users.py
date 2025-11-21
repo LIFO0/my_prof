@@ -36,15 +36,21 @@ class Command(BaseCommand):
         # Создаём профиль директора
         profile, created = UserProfile.objects.get_or_create(
             user=director,
-            defaults={'role': UserProfile.ROLE_DIRECTOR}
+            defaults={
+                'role': UserProfile.ROLE_DIRECTOR,
+                'internal_email': 'admin@metrika.com'
+            }
         )
-        if not created and profile.role != UserProfile.ROLE_DIRECTOR:
-            profile.role = UserProfile.ROLE_DIRECTOR
+        if not created:
+            if profile.role != UserProfile.ROLE_DIRECTOR:
+                profile.role = UserProfile.ROLE_DIRECTOR
+            if not profile.internal_email:
+                profile.internal_email = 'admin@metrika.com'
             profile.save()
             self.stdout.write(
                 self.style.SUCCESS(f'[OK] Обновлена роль пользователя {director.username} на директора')
             )
-        elif created:
+        else:
             self.stdout.write(
                 self.style.SUCCESS(f'[OK] Создан профиль директора для {director.username}')
             )
@@ -75,15 +81,21 @@ class Command(BaseCommand):
         # Создаём профиль сотрудника
         profile, created = UserProfile.objects.get_or_create(
             user=employee,
-            defaults={'role': UserProfile.ROLE_EMPLOYEE}
+            defaults={
+                'role': UserProfile.ROLE_EMPLOYEE,
+                'internal_email': 'employee@metrika.com'
+            }
         )
-        if not created and profile.role != UserProfile.ROLE_EMPLOYEE:
-            profile.role = UserProfile.ROLE_EMPLOYEE
+        if not created:
+            if profile.role != UserProfile.ROLE_EMPLOYEE:
+                profile.role = UserProfile.ROLE_EMPLOYEE
+            if not profile.internal_email:
+                profile.internal_email = 'employee@metrika.com'
             profile.save()
             self.stdout.write(
                 self.style.SUCCESS(f'[OK] Обновлена роль пользователя {employee.username} на сотрудника')
             )
-        elif created:
+        else:
             self.stdout.write(
                 self.style.SUCCESS(f'[OK] Создан профиль сотрудника для {employee.username}')
             )
@@ -94,8 +106,12 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS('Директор:'))
         self.stdout.write(self.style.SUCCESS('  Логин: director'))
         self.stdout.write(self.style.SUCCESS('  Пароль: director123'))
+        director_profile = UserProfile.objects.get(user=director)
+        self.stdout.write(self.style.SUCCESS(f'  Внутренний email: {director_profile.get_internal_email()}'))
         self.stdout.write(self.style.SUCCESS('\nСотрудник:'))
         self.stdout.write(self.style.SUCCESS('  Логин: employee'))
         self.stdout.write(self.style.SUCCESS('  Пароль: employee123'))
+        employee_profile = UserProfile.objects.get(user=employee)
+        self.stdout.write(self.style.SUCCESS(f'  Внутренний email: {employee_profile.get_internal_email()}'))
         self.stdout.write(self.style.SUCCESS('='*60))
 
