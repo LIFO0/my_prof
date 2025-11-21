@@ -242,7 +242,12 @@ function initSelectionControls() {
         .then((data) => {
           if (data.success) {
             accreditationBtn.textContent = 'Готово';
-            setTimeout(() => window.location.reload(), 600);
+            // Сохраняем текущие фильтры при перезагрузке
+            const currentUrl = window.location.href;
+            setTimeout(() => {
+              // Принудительная перезагрузка с очисткой кэша для обновления статистики
+              window.location.href = currentUrl.split('?')[0] + (window.location.search || '') + (window.location.search ? '&' : '?') + '_t=' + Date.now();
+            }, 600);
           } else {
             throw new Error(data.message || 'Не удалось обновить статусы');
           }

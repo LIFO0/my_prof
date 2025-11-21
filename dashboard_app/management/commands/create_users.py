@@ -16,17 +16,21 @@ class Command(BaseCommand):
                 'last_name': 'Иванов',
                 'email': 'director@example.com',
                 'is_staff': True,
+                'is_active': True,
             }
         )
+        # Всегда устанавливаем пароль и активируем пользователя
+        director.set_password('director123')
+        director.is_active = True
+        director.is_staff = True
+        director.save()
         if created:
-            director.set_password('director123')
-            director.save()
             self.stdout.write(
                 self.style.SUCCESS(f'[OK] Создан пользователь директора: {director.username}')
             )
         else:
             self.stdout.write(
-                self.style.WARNING(f'[WARN] Пользователь директора уже существует: {director.username}')
+                self.style.SUCCESS(f'[OK] Обновлён пароль для пользователя директора: {director.username}')
             )
 
         # Создаём профиль директора
@@ -52,17 +56,20 @@ class Command(BaseCommand):
                 'first_name': 'Петр',
                 'last_name': 'Петров',
                 'email': 'employee@example.com',
+                'is_active': True,
             }
         )
+        # Всегда устанавливаем пароль и активируем пользователя
+        employee.set_password('employee123')
+        employee.is_active = True
+        employee.save()
         if created:
-            employee.set_password('employee123')
-            employee.save()
             self.stdout.write(
                 self.style.SUCCESS(f'[OK] Создан пользователь сотрудника: {employee.username}')
             )
         else:
             self.stdout.write(
-                self.style.WARNING(f'[WARN] Пользователь сотрудника уже существует: {employee.username}')
+                self.style.SUCCESS(f'[OK] Обновлён пароль для пользователя сотрудника: {employee.username}')
             )
 
         # Создаём профиль сотрудника

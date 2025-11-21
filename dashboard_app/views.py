@@ -37,12 +37,20 @@ def login_view(request):
         user = authenticate(request, username=username, password=password)
         if user is not None:
             # Проверяем, что у пользователя есть профиль
-            if not hasattr(user, 'profile'):
+            try:
+                profile = user.profile
+            except UserProfile.DoesNotExist:
                 messages.error(request, 'У пользователя отсутствует профиль. Обратитесь к администратору.')
-            else:
-                login(request, user)
-                next_url = request.GET.get('next', 'dashboard')
-                return redirect(next_url)
+                return render(request, 'dashboard_app/login.html')
+            
+            # Проверяем, что пользователь активен
+            if not user.is_active:
+                messages.error(request, 'Ваш аккаунт деактивирован. Обратитесь к администратору.')
+                return render(request, 'dashboard_app/login.html')
+            
+            login(request, user)
+            next_url = request.GET.get('next', 'dashboard')
+            return redirect(next_url)
         else:
             messages.error(request, 'Неверное имя пользователя или пароль.')
     return render(request, 'dashboard_app/login.html')
@@ -397,4 +405,9 @@ def accreditation_sync_view(request):
         )
 
     results = sync_accreditation_statuses(inns)
+    
+    # Очищаем кэш датасета, чтобы статистика обновилась
+    from .services import load_dataset
+    load_dataset.cache_clear()
+    
     return JsonResponse({'success': True, 'results': results})
