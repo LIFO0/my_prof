@@ -70,15 +70,54 @@
             font-size: 0.85rem;
             color: #94a3b8;
         }
+        .header-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+        }
+        .download-btn {
+            background-color: #10472b;
+            color: white;
+            border: none;
+            border-radius: 999px;
+            padding: 10px 20px;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: opacity 0.2s ease;
+        }
+        .download-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .download-btn:not(:disabled):hover {
+            opacity: 0.85;
+        }
         @media print {
             body { margin: 0; }
             .note { display: none; }
+            .download-btn { display: none; }
         }
     </style>
 </head>
 <body>
-    <h1>Отчёт по выбранным компаниям</h1>
-    <p class="meta">Всего организаций: {{ count }} · Дата формирования: {% now "d.m.Y H:i" %}</p>
+    <div class="header-actions">
+        <div>
+            <h1>Отчёт по выбранным компаниям</h1>
+            <p class="meta">Всего организаций: {{ count }} · Дата формирования: {% now "d.m.Y H:i" %}</p>
+        </div>
+        {% if selected_inns %}
+        <form method="post" action="{% url 'report_export_excel' %}">
+            {% csrf_token %}
+            {% for inn in selected_inns %}
+                <input type="hidden" name="company_inn" value="{{ inn }}">
+            {% endfor %}
+            <button type="submit" class="download-btn">Скачать в Excel</button>
+        </form>
+        {% endif %}
+    </div>
 
     <div class="grid">
         <div class="card">
@@ -215,6 +254,7 @@
                 </td>
             </tr>
         </table>
+
     </article>
     {% empty %}
     <p>Не удалось построить отчёт: данные не найдены.</p>

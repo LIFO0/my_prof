@@ -22,7 +22,10 @@ from dashboard_app.views import (
     dashboard_view,
     login_view,
     logout_view,
+    notification_download_report_view,
+    report_export_excel_view,
     report_view,
+    send_report_notification_view,
 )
 
 urlpatterns = [
@@ -31,5 +34,12 @@ urlpatterns = [
     path('logout/', logout_view, name='logout'),
     path('', dashboard_view, name='dashboard'),
     path('report/', report_view, name='report'),
+    path('report/export/', report_export_excel_view, name='report_export_excel'),
+    path('report/send/', send_report_notification_view, name='report_send'),
+    path(
+        'notifications/<int:pk>/download/',
+        notification_download_report_view,
+        name='notification_download',
+    ),
     path('accreditation/sync/', accreditation_sync_view, name='accreditation_sync'),
 ]

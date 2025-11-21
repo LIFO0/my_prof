@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import User
 
-from .models import AccreditationStatus, UserProfile
+from .models import AccreditationStatus, Notification, UserProfile
 
 
 @admin.register(UserProfile)
@@ -19,6 +19,14 @@ class AccreditationStatusAdmin(admin.ModelAdmin):
     list_filter = ('status', 'checked_at', 'decision_date')
     search_fields = ('inn', 'name', 'decision_number')
     readonly_fields = ('checked_at',)
+
+
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = ('title', 'recipient', 'notification_type', 'is_read', 'created_at')
+    list_filter = ('notification_type', 'is_read', 'created_at')
+    search_fields = ('title', 'message', 'recipient__username')
+    autocomplete_fields = ('recipient', 'sender')
 
 
 # Добавляем профиль в админку пользователя

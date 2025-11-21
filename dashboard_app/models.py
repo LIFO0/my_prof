@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.db import models
 
@@ -68,3 +69,44 @@ class AccreditationStatus(models.Model):
 
     def __str__(self):
         return f"{self.inn} — {self.status}"
+
+
+class Notification(models.Model):
+    """Внутренние уведомления и условные письма."""
+
+    class Type(models.TextChoices):
+        REPORT = 'report', 'Отчёт'
+        DATA = 'data', 'Обновление данных'
+
+    recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='notifications',
+        verbose_name='Получатель',
+    )
+    sender = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='sent_notifications',
+        verbose_name='Отправитель',
+        null=True,
+        blank=True,
+    )
+    notification_type = models.CharField(
+        'Тип',
+        max_length=20,
+        choices=Type.choices,
+    )
+    title = models.CharField('Заголовок', max_length=180)
+    message = models.TextField('Сообщение')
+    payload = models.JSONField('Данные', default=dict, blank=True)
+    is_read = models.BooleanField('Прочитано', default=False)
+    created_at = models.DateTimeField('Создано', auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Уведомление'
+        verbose_name_plural = 'Уведомления'
+
+    def __str__(self):
+        return f'{self.get_notification_type_display()}: {self.title}'
