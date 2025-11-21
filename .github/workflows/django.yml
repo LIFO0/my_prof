@@ -1,0 +1,178 @@
+name: Django CI/CD and GitHub Pages Deploy
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 4
+      matrix:
+        python-version: ["3.8", "3.9", "3.10"]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+        
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Run Tests
+      run: |
+        python manage.py test
+
+  build-and-deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.10"
+        
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Setup Pages
+      uses: actions/configure-pages@v4
+      
+    - name: Create deployment package
+      run: |
+        mkdir -p _site
+        # Копируем статические файлы
+        cp -r static _site/static || true
+        # Создаем .nojekyll для правильной работы GitHub Pages
+        touch _site/.nojekyll
+        # Создаем базовую index.html для GitHub Pages
+        cat > _site/index.html << 'EOF'
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IT-дашборд Калининградской области</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #007bff;
+            padding-bottom: 10px;
+        }
+        .info {
+            margin: 20px 0;
+            line-height: 1.6;
+        }
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .link {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 10px 20px;
+            background: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+        }
+        .link:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>IT-дашборд Калининградской области</h1>
+        <div class="info">
+            <p><strong>Веб-приложение для анализа и визуализации данных об IT-компаниях Калининградской области.</strong></p>
+            
+            <div class="warning">
+                <strong>⚠️ Важно:</strong> Это полноценное Django приложение, требующее сервер для работы. 
+                На GitHub Pages размещена только статическая версия. Для полного функционала запустите приложение локально.
+            </div>
+            
+            <h2>Основные возможности:</h2>
+            <ul>
+                <li>Просмотр данных о 120+ IT-компаниях</li>
+                <li>Фильтрация по различным параметрам</li>
+                <li>Проверка аккредитации через API Госуслуг</li>
+                <li>Система ролей (директор/сотрудник)</li>
+                <li>Генерация отчетов</li>
+                <li>Внутренняя почтовая система</li>
+            </ul>
+            
+            <h2>Запуск проекта:</h2>
+            <p>Для работы с приложением выполните следующие команды:</p>
+            <pre style="background: #f5f5f5; padding: 10px; border-radius: 4px; overflow-x: auto;">
+git clone [URL репозитория]
+cd my_prof
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py create_users
+python manage.py runserver
+            </pre>
+            
+            <h2>Документация:</h2>
+            <p>Подробная информация доступна в файле README.md репозитория.</p>
+            
+            <a href="https://github.com/[USERNAME]/[REPO]" class="link">Посмотреть репозиторий на GitHub</a>
+        </div>
+    </div>
+</body>
+</html>
+EOF
+        
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: '_site'
+        
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
+
