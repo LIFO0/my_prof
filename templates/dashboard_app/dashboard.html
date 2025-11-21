@@ -255,7 +255,10 @@
                                         <input type="checkbox" class="row-checkbox" name="company_inn" value="{{ company.inn }}" aria-label="Выбрать {{ company.short_name|default:company.full_name }}">
                                     </td>
                                     <td class="table-cell">
-                                        <h4 class="company-name">{{ company.short_name|default:company.full_name }}</h4>
+                                        <h4 class="company-name" 
+                                            data-company-info='{"full_name": "{{ company.full_name|escapejs }}", "inn": "{{ company.inn }}", "okved": "{{ company.okved|default:"—"|escapejs }}", "revenue": "{{ company.revenue|default:"—"|intcomma }}", "expenses": "{{ company.expenses|default:"—"|intcomma }}", "taxes": "{{ company.taxes|default:"—"|intcomma }}", "tax_year": "{{ company.tax_year|default:"—" }}", "staff": "{{ company.staff|default:"—" }}", "staff_year": "{{ company.staff_year|default:"—" }}", "uses_usn": "{{ company.uses_usn|yesno:"Да,Нет,—" }}", "ceo": "{{ company.ceo|default:"—"|escapejs }}", "registered_at": "{{ company.registered_at|default:"—" }}", "msme_at": "{{ company.msme_at|default:"—" }}", "financial_result": "{{ company.financial_result|default:"—"|intcomma }}", "accreditation_status": "{% if company.accreditation %}{{ company.accreditation.status|default:"—"|escapejs }}{% else %}—{% endif %}", "accreditation_decision": "{% if company.accreditation %}{{ company.accreditation.decision_number|default:"—"|escapejs }}{% else %}—{% endif %}", "accreditation_date": "{% if company.accreditation and company.accreditation.decision_date %}{{ company.accreditation.decision_date|date:"d.m.Y" }}{% else %}—{% endif %}"}'>
+                                            {{ company.short_name|default:company.full_name }}
+                                        </h4>
                                         <p class="company-details">{{ company.full_name }}<br>ИНН: {{ company.inn }}</p>
                                     </td>
                                     <td class="table-cell">
